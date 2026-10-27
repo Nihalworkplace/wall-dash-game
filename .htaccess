@@ -1,0 +1,8 @@
+DirectoryIndex index.html
+Options -Indexes
+
+# /admin opens the admin panel
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteRule ^admin/?$ admin.html [L]
+</IfModule>

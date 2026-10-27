@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#24324A">
+<title>Wall Dash</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css?v=9">
+</head>
+<body>
+
+<!-- Home -->
+<section id="home" class="screen">
+  <header class="brand">
+    <h1 id="gameName">Wall Dash</h1>
+    <p class="tagline">Race your pawn across. Drop walls to send everyone else the long way round.</p>
+  </header>
+
+  <p id="announcement" class="announcement" hidden></p>
+
+  <label class="field">
+    <span>Your name</span>
+    <input id="nameInput" maxlength="18" autocomplete="nickname" placeholder="Player">
+  </label>
+
+  <div class="setup">
+    <div class="row">
+      <span class="row-label">Players</span>
+      <div class="seg" data-pref="players">
+        <button data-v="2">2</button><button data-v="3">3</button><button data-v="4">4</button>
+      </div>
+    </div>
+    <div class="row" id="modeRow">
+      <span class="row-label">Race to</span>
+      <div class="seg" data-pref="mode">
+        <button data-v="center">The centre ★</button><button data-v="edge">Far edge</button>
+      </div>    </div>
+    <div class="row" id="levelRow">
+      <span class="row-label">Computer</span>
+      <div class="seg" data-pref="level">
+        <button data-v="easy">Easy</button><button data-v="normal">Normal</button><button data-v="hard">Hard</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button id="btnAI" class="btn primary">Play the computer</button>
+    <button id="btnLocal" class="btn">Play on this device</button>
+  </div>
+
+  <div class="online" id="onlineBox">
+    <h2>Play online</h2>
+    <button id="btnCreate" class="btn primary">Create a room</button>
+    <div class="join">
+      <input id="codeInput" maxlength="5" placeholder="Room code" autocapitalize="characters" autocomplete="off" spellcheck="false">
+      <button id="btnJoin" class="btn">Join</button>
+    </div>
+    <p id="onlineNote" class="note" hidden></p>
+  </div>
+</section>
+
+<!-- Lobby -->
+<section id="lobby" class="screen" hidden>
+  <p class="lobby-intro">Share this code so friends can join</p>
+  <div class="code-box"><span id="roomCode">-----</span></div>
+  <div class="actions inline">
+    <button id="btnShare" class="btn">Share invite link</button>
+  </div>
+  <ul id="seatList" class="seats"></ul>
+  <label id="fillRow" class="check"><input type="checkbox" id="fillBots" checked> Fill empty seats with computer players</label>
+  <div class="actions">
+    <button id="btnStart" class="btn primary">Start game</button>
+    <p id="waitNote" class="note" hidden>Waiting for the host to start the game…</p>
+    <button id="btnLeaveLobby" class="btn ghost">Leave room</button>
+  </div>
+</section>
+
+<!-- Game -->
+<section id="game" class="screen game" hidden>
+  <div id="players" class="players"></div>
+  <div id="boardWrap" class="board-wrap"><canvas id="board" aria-label="Game board"></canvas></div>
+  <p id="status" class="status" aria-live="polite"></p>
+  <div class="controls">
+    <button id="btnPass" class="btn" hidden>Skip turn</button>
+    <button id="btnMenu" class="btn ghost">Leave</button>
+  </div>
+  <div id="wallPad" class="wall-pad" hidden>
+    <div class="dpad">
+      <button class="btn" data-dir="up" aria-label="Move wall up">↑</button>
+      <button class="btn" data-dir="left" aria-label="Move wall left">←</button>
+      <button class="btn" data-dir="right" aria-label="Move wall right">→</button>
+      <button class="btn" data-dir="down" aria-label="Move wall down">↓</button>
+    </div>
+    <div class="wall-actions">
+      <button id="btnPlace" class="btn primary place">Place wall</button>
+      <div class="inline-btns">
+        <button id="btnRotate" class="btn" title="Turn the wall (R)">⟲ Turn</button>
+        <button id="btnCancelWall" class="btn ghost">Cancel</button>
+      </div>
+    </div>
+  </div>
+  <p class="hint" id="hint"></p>
+</section>
+
+<div id="overlay" class="overlay" hidden>
+  <div class="sheet">
+    <div id="winDot" class="win-dot"></div>
+    <h2 id="winText">Red wins</h2>
+    <div class="actions">
+      <button id="btnAgain" class="btn primary">Play again</button>
+      <button id="btnHome" class="btn ghost">Back to menu</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast" role="status" hidden></div>
+
+<script src="shared/game.js?v=8"></script>
+<script src="shared/ai.js?v=5"></script>
+<script src="js/app.js?v=9"></script>
+</body>
+</html>

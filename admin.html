@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Game admin</title>
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<main class="screen admin">
+  <h1>Game admin</h1>
+
+  <form id="loginForm" class="panel" style="margin-top:20px">
+    <label><span>Admin password</span><input id="pw" type="password" autocomplete="current-password" required></label>
+    <button class="btn primary">Sign in</button>
+    <p id="loginErr" class="err" hidden></p>
+  </form>
+
+  <div id="dash" hidden>
+    <h2>Right now</h2>
+    <div class="stats">
+      <div class="stat"><b id="sOnline">0</b><span>players in rooms</span></div>
+      <div class="stat"><b id="sRooms">0</b><span>open rooms</span></div>
+      <div class="stat"><b id="sStarted">0</b><span>games started</span></div>
+      <div class="stat"><b id="sFinished">0</b><span>games finished</span></div>
+    </div>
+
+    <h2>Game settings</h2>
+    <form id="settingsForm" class="panel">
+      <div class="grid2">
+        <label><span>Game name</span><input name="gameName" maxlength="40"></label>
+        <label><span>Board size</span>
+          <select name="boardSize"><option>5</option><option>7</option><option>9</option><option>11</option><option>13</option></select>
+          <small>Squares per side. 9 is the classic size.</small></label>
+        <label><span>Walls each, 2 players</span><input name="walls2p" type="number" min="0" max="40"></label>
+        <label><span>Walls each, 3 players</span><input name="walls3p" type="number" min="0" max="40"></label>
+        <label><span>Walls each, 4 players</span><input name="walls4p" type="number" min="0" max="40"></label>
+        <label><span>Default race</span>
+          <select name="default4pMode"><option value="center">To the centre</option><option value="edge">To the far edge</option></select></label>
+        <label><span>Turn timer, online (seconds)</span><input name="turnTimer" type="number" min="0" max="600">
+          <small>0 turns the timer off. When time runs out, the pawn moves one step toward its goal.</small></label>
+        <label><span>Most rooms at once</span><input name="maxRooms" type="number" min="1" max="10000"></label>
+      </div>
+      <label class="check"><input type="checkbox" name="onlineEnabled"> Allow online play</label>
+      <label class="check"><input type="checkbox" name="allowBots"> Allow computer players</label>
+      <label><span>Message on the home screen</span><textarea name="announcement" rows="2" maxlength="300" placeholder="Leave empty to show nothing"></textarea></label>
+      <p><small>New settings apply to games started after you save. Games in progress keep their settings.</small></p>
+      <button class="btn primary">Save settings</button>
+      <p id="saveMsg" hidden></p>
+    </form>
+
+    <h2>Open rooms</h2>
+    <div class="panel table-wrap">
+      <table><thead><tr><th>Code</th><th>Players</th><th>Status</th><th>Started</th><th></th></tr></thead><tbody id="roomRows"></tbody></table>
+    </div>
+
+    <h2>Change admin password</h2>
+    <form id="pwForm" class="panel">
+      <div class="grid2">
+        <label><span>Current password</span><input name="current" type="password" autocomplete="current-password" required></label>
+        <label><span>New password</span><input name="next" type="password" minlength="6" autocomplete="new-password" required></label>
+      </div>
+      <button class="btn">Change password</button>
+      <p id="pwMsg" hidden></p>
+    </form>
+
+    <p style="margin-top:30px"><button id="logout" class="btn ghost">Sign out</button></p>
+  </div>
+</main>
+<script src="js/admin.js"></script>
+</body>
+</html>
