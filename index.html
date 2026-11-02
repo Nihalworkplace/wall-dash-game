@@ -10,7 +10,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css?v=9">
+<link rel="stylesheet" href="css/style.css?v=18">
 </head>
 <body>
 
@@ -31,15 +31,21 @@
   <div class="setup">
     <div class="row">
       <span class="row-label">Players</span>
-      <div class="seg" data-pref="players">
-        <button data-v="2">2</button><button data-v="3">3</button><button data-v="4">4</button>
+      <div class="stepper">
+        <button type="button" id="playersDown" aria-label="Fewer players">−</button>
+        <output id="playersOut" aria-live="polite">2</output>
+        <button type="button" id="playersUp" aria-label="More players">+</button>
       </div>
     </div>
     <div class="row" id="modeRow">
       <span class="row-label">Race to</span>
-      <div class="seg" data-pref="mode">
-        <button data-v="center">The centre ★</button><button data-v="edge">Far edge</button>
-      </div>    </div>
+      <div class="seg modes" data-pref="mode">
+        <button data-v="center"><span>The centre</span></button>
+        <button data-v="edge"><span>Far edge</span></button>
+        <button data-v="race"><span>Top row</span></button>
+      </div>
+      <p class="row-note" id="modeNote" hidden>With 5 or more players everyone races from the bottom row to the top row.</p>
+    </div>
     <div class="row" id="levelRow">
       <span class="row-label">Computer</span>
       <div class="seg" data-pref="level">
@@ -72,6 +78,15 @@
     <button id="btnShare" class="btn">Share invite link</button>
   </div>
   <ul id="seatList" class="seats"></ul>
+  <div class="row lobby-walls">
+    <span class="row-label">Walls each</span>
+    <div class="stepper">
+      <button type="button" id="wallsDown" aria-label="Fewer walls">−</button>
+      <output id="wallsOut" aria-live="polite">10</output>
+      <button type="button" id="wallsUp" aria-label="More walls">+</button>
+    </div>
+    <p class="row-note" id="wallsNote" hidden>The host picks this.</p>
+  </div>
   <label id="fillRow" class="check"><input type="checkbox" id="fillBots" checked> Fill empty seats with computer players</label>
   <div class="actions">
     <button id="btnStart" class="btn primary">Start game</button>
@@ -82,29 +97,28 @@
 
 <!-- Game -->
 <section id="game" class="screen game" hidden>
-  <div id="players" class="players"></div>
-  <div id="boardWrap" class="board-wrap"><canvas id="board" aria-label="Game board"></canvas></div>
-  <p id="status" class="status" aria-live="polite"></p>
-  <div class="controls">
-    <button id="btnPass" class="btn" hidden>Skip turn</button>
-    <button id="btnMenu" class="btn ghost">Leave</button>
+  <div class="game-top">
+    <div id="players" class="players"></div>
+    <button id="btnMenu" class="btn ghost leave">Leave</button>
   </div>
-  <div id="wallPad" class="wall-pad" hidden>
-    <div class="dpad">
-      <button class="btn" data-dir="up" aria-label="Move wall up">↑</button>
-      <button class="btn" data-dir="left" aria-label="Move wall left">←</button>
-      <button class="btn" data-dir="right" aria-label="Move wall right">→</button>
-      <button class="btn" data-dir="down" aria-label="Move wall down">↓</button>
-    </div>
-    <div class="wall-actions">
-      <button id="btnPlace" class="btn primary place">Place wall</button>
-      <div class="inline-btns">
+  <div id="chatLog" class="chat-log" aria-label="Chat" aria-live="polite" hidden></div>
+  <div id="boardWrap" class="board-wrap"><canvas id="board" aria-label="Game board"></canvas></div>
+  <div class="dock">
+    <p id="status" class="status" aria-live="polite"></p>
+    <div class="dock-body">
+      <button id="btnPass" class="btn" hidden>Skip turn</button>
+      <div id="wallPad" class="wall-pad" hidden>
         <button id="btnRotate" class="btn" title="Turn the wall (R)">⟲ Turn</button>
+        <button id="btnPlace" class="btn primary place">Place wall</button>
         <button id="btnCancelWall" class="btn ghost">Cancel</button>
       </div>
+      <p class="hint" id="hint"></p>
     </div>
   </div>
-  <p class="hint" id="hint"></p>
+  <form id="chatForm" class="chat-form" autocomplete="off" hidden>
+    <input id="chatInput" maxlength="200" placeholder="Message…" aria-label="Chat message" enterkeyhint="send">
+    <button class="btn primary" type="submit">Send</button>
+  </form>
 </section>
 
 <div id="overlay" class="overlay" hidden>
@@ -120,8 +134,8 @@
 
 <div id="toast" class="toast" role="status" hidden></div>
 
-<script src="shared/game.js?v=8"></script>
-<script src="shared/ai.js?v=5"></script>
-<script src="js/app.js?v=9"></script>
+<script src="shared/game.js?v=10"></script>
+<script src="shared/ai.js?v=6"></script>
+<script src="js/app.js?v=17"></script>
 </body>
 </html>

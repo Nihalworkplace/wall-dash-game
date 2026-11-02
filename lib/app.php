@@ -116,7 +116,8 @@ const DEFAULTS = [
     'walls2p' => 10,
     'walls3p' => 7,
     'walls4p' => 5,
-    'default4pMode' => 'center', // starting "Race to" choice: 'center' | 'edge'
+    'wallsMany' => 4,          // 5 or more players (top-row race only)
+    'default4pMode' => 'center', // starting "Race to" choice: 'center' | 'edge' | 'race'
     'turnTimer' => 0,          // seconds per turn in online games, 0 = off
     'allowBots' => true,       // computer players (offline and to fill online seats)
     'onlineEnabled' => true,
@@ -138,7 +139,8 @@ function sanitize_settings(array $in, array $base)
     if (array_key_exists('walls2p', $in)) $s['walls2p'] = clamp_int($in['walls2p'], 0, 40, 10);
     if (array_key_exists('walls3p', $in)) $s['walls3p'] = clamp_int($in['walls3p'], 0, 40, 7);
     if (array_key_exists('walls4p', $in)) $s['walls4p'] = clamp_int($in['walls4p'], 0, 40, 5);
-    if (array_key_exists('default4pMode', $in)) $s['default4pMode'] = $in['default4pMode'] === 'edge' ? 'edge' : 'center';
+    if (array_key_exists('wallsMany', $in)) $s['wallsMany'] = clamp_int($in['wallsMany'], 0, 40, 4);
+    if (array_key_exists('default4pMode', $in)) $s['default4pMode'] = in_array($in['default4pMode'], ['edge', 'race'], true) ? $in['default4pMode'] : 'center';
     if (array_key_exists('turnTimer', $in)) $s['turnTimer'] = clamp_int($in['turnTimer'], 0, 600, 0);
     if (array_key_exists('allowBots', $in)) $s['allowBots'] = (bool) $in['allowBots'];
     if (array_key_exists('onlineEnabled', $in)) $s['onlineEnabled'] = (bool) $in['onlineEnabled'];

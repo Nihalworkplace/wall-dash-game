@@ -1,6 +1,6 @@
 # Wall Dash (PHP version)
 
-A wall-and-race board game for 2, 3 or 4 players: online rooms, offline play, and an admin panel.
+A wall-and-race board game for 2 up to 13 players: online rooms, offline play, and an admin panel.
 This is the PHP version of the Node.js project in `../wall-dash`. It runs on ordinary PHP web hosting: no Node, no database, no Composer.
 
 ## Requirements
@@ -72,8 +72,9 @@ Each player in an online room makes about one small request per second. Shared h
 ## Rules
 
 - Each turn: move your pawn one square, or place a wall (two squares long).
-- If another pawn is directly in front of you, jump over it. If a wall or pawn is behind it, step to its side instead.
+- If another pawn is directly in front of you, jump over it. If several pawns stand touching in a line, jump over all of them. If a wall or the board edge is behind the last one, step to its side instead.
 - Walls can't overlap or cross, and can never shut any pawn in completely.
-- Two ways to win (picked per game or room): be first to the gold centre ★ square, or first to any square on the far edge. The board fills your destination squares with colour.
-- 2, 3 and 4 players: either way to win.
+- Three ways to win (picked per game or room): be first to the gold centre ★ square, first to any square on the far edge, or, in a top-row race, first to any square on the gold top row. The board fills your destination squares with colour.
+- 2, 3 and 4 players: any of the three.
+- 5 or more players: always the top-row race. Everyone starts spread along the bottom row; there can be one player per column, so up to 13 on a 13×13 board. Walls each are set separately in the admin panel.
 - 3 players: the fourth side stays empty. Turns go clockwise.

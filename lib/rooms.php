@@ -4,7 +4,11 @@
 
 const PRESENCE_MS = 12000; // a player who hasn't checked in for this long shows as offline
 const BOT_DELAY_MS = 700;
-const BOT_NAMES = ['Bolt', 'Pebble', 'Maple', 'Juniper'];
+const BOT_DELAY_MANY_MS = 350; // big games: a full round of computer turns would drag at 700
+const BOT_NAMES = ['Bolt', 'Pebble', 'Maple', 'Juniper', 'Cedar', 'Flint', 'Hazel', 'Rowan', 'Slate', 'Willow', 'Birch', 'Clover', 'Moss'];
+const CHAT_KEEP = 30;     // messages kept per room
+const CHAT_MAX = 200;     // characters per message
+const CHAT_GAP_MS = 600;  // shortest time between two messages from one player
 
 function room_file($code)
 {
@@ -34,6 +38,13 @@ function clean_name($n)
 {
     $n = str_cut(trim(str_replace(['<', '>'], '', is_scalar($n) ? (string) $n : '')), 18);
     return $n === '' ? 'Player' : $n;
+}
+
+// One line of plain text; the page shows it as text, never as HTML.
+function clean_chat($t)
+{
+    $t = preg_replace('/[\x00-\x1F\x7F\s]+/u', ' ', is_scalar($t) ? (string) $t : '');
+    return str_cut(trim((string) $t), CHAT_MAX);
 }
 
 function seat_of(array $room, $pid)
@@ -82,7 +93,7 @@ function room_reply(array $room, $pid, $now)
         'room' => [
             'code' => $room['code'], 'size' => $room['size'], 'mode' => $room['mode'], 'status' => $room['status'],
             'host' => $room['host'], 'seats' => $seats, 'state' => $room['state'],
-            'deadline' => $room['deadline'] ?: null, 'cfg' => $room['cfg'], 'rev' => $room['rev']
+            'deadline' => $room['deadline'] ?: null, 'cfg' => $room['cfg'], 'rev' => $room['rev'], 'chat' => $room['chat'] ?? [], 'walls' => room_walls($room)
         ]
     ];
 }
@@ -92,11 +103,24 @@ function gone_reply(array $room)
     return ['error' => 'gone', 'reason' => $room['status'] === 'closed' ? $room['closedReason'] : 'You’re no longer in this room.'];
 }
 
+// Walls each player gets: what the host picked in the lobby, else the admin default for this many players.
+function room_walls(array $room)
+{
+    if (isset($room['walls'])) return $room['walls'];
+    $cfg = $room['cfg'];
+    $size = $room['size'];
+    if ($size > 4) return $cfg['wallsMany'] ?? DEFAULTS['wallsMany'];
+    if ($size === 4) return $cfg['walls4p'];
+    if ($size === 3) return $cfg['walls3p'] ?? DEFAULTS['walls3p'];
+    return $cfg['walls2p'];
+}
+
 function start_game(array &$room, $now)
 {
+    $w = room_walls($room);
     $room['state'] = Game::createGame([
         'numPlayers' => $room['size'], 'mode' => $room['mode'], 'boardSize' => $room['cfg']['boardSize'],
-        'walls2p' => $room['cfg']['walls2p'], 'walls3p' => $room['cfg']['walls3p'] ?? DEFAULTS['walls3p'], 'walls4p' => $room['cfg']['walls4p']
+        'walls2p' => $w, 'walls3p' => $w, 'walls4p' => $w, 'wallsMany' => $w
     ]);
     $room['status'] = 'playing';
     bump_stat('gamesStarted');
@@ -111,7 +135,7 @@ function after_change(array &$room, $now)
     if ($room['status'] === 'playing' && $st['winner'] !== null) { $room['status'] = 'finished'; bump_stat('gamesFinished'); }
     if ($room['status'] === 'playing') {
         $seat = $room['seats'][$st['turn']];
-        if (!empty($seat['bot'])) $room['botAt'] = $now + BOT_DELAY_MS;
+        if (!empty($seat['bot'])) $room['botAt'] = $now + ($room['size'] > 4 ? BOT_DELAY_MANY_MS : BOT_DELAY_MS);
         elseif ($room['cfg']['turnTimer'] > 0) $room['deadline'] = $now + $room['cfg']['turnTimer'] * 1000;
     }
     $room['touched'] = $now;

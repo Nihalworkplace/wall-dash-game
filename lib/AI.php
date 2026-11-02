@@ -28,14 +28,19 @@ final class AI
         }
         if ($p['walls'] <= 0) return $move;
 
-        // Find the opponent closest to winning.
-        $leader = -1;
+        // Find the opponent closest to winning. Seats that moved earlier are often just a step
+        // ahead, so pick at random among the near-leaders until the race gets tight.
+        $dists = [];
         $leaderDist = INF;
         for ($j = 0; $j < $st['numPlayers']; $j++) {
             if ($j === $me) continue;
-            $d = Game::distance($st, $j, $ws);
-            if ($d < $leaderDist) { $leaderDist = $d; $leader = $j; }
+            $dists[$j] = Game::distance($st, $j, $ws);
+            $leaderDist = min($leaderDist, $dists[$j]);
         }
+        $slack = $leaderDist <= 2 ? 0 : 1;
+        $near = [];
+        foreach ($dists as $j => $d) if ($d <= $leaderDist + $slack) $near[] = $j;
+        $leader = $near[mt_rand(0, count($near) - 1)];
         // Rough tempo: in 2 players, the opponent moves after us.
         $margin = $level === 'hard' ? 1 : 0;
         $threatened = $leaderDist < $myDist + $margin || $leaderDist <= ($level === 'easy' ? 1 : 2);

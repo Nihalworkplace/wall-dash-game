@@ -27,13 +27,19 @@
     }
     if (p.walls <= 0) return move;
 
-    // Find the opponent closest to winning.
-    let leader = -1, leaderDist = Infinity;
+    // Find the opponent closest to winning. Seats that moved earlier are often just a step
+    // ahead, so pick at random among the near-leaders until the race gets tight.
+    const dists = [];
+    let leaderDist = Infinity;
     for (let j = 0; j < st.numPlayers; j++) {
       if (j === me) continue;
-      const d = G.distance(st, j, ws);
-      if (d < leaderDist) { leaderDist = d; leader = j; }
+      dists[j] = G.distance(st, j, ws);
+      leaderDist = Math.min(leaderDist, dists[j]);
     }
+    const slack = leaderDist <= 2 ? 0 : 1;
+    const near = [];
+    dists.forEach((d, j) => { if (d <= leaderDist + slack) near.push(j); });
+    const leader = near[Math.floor(Math.random() * near.length)];
     // Rough tempo: in 2 players, the opponent moves after us.
     const margin = level === 'hard' ? 1 : 0;
     const threatened = leaderDist < myDist + margin || leaderDist <= (level === 'easy' ? 1 : 2);

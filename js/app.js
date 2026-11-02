@@ -3,8 +3,10 @@
   'use strict';
   const G = WallGame;
   const $ = s => document.querySelector(s);
-  const COLORS = ['#D9432F', '#3E7BE6', '#E7B22E', '#2FA36B'];
-  const COLOR_NAMES = ['Red', 'Blue', 'Yellow', 'Green'];
+  // One colour per seat, up to 13 players (one per column on the biggest board).
+  const COLORS = ['#D9432F', '#3E7BE6', '#E7B22E', '#2FA36B', '#9A63E0', '#EE7C2B', '#E2629F', '#22B3B0',
+    '#E8E4DA', '#9BC53D', '#A0704C', '#7FB4EE', '#8C929C'];
+  const COLOR_NAMES = ['Red', 'Blue', 'Yellow', 'Green', 'Purple', 'Orange', 'Pink', 'Teal', 'White', 'Lime', 'Brown', 'Sky', 'Grey'];
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   /* ---------- storage helpers (WebView may block storage) ---------- */
@@ -14,7 +16,7 @@
     del(k) { try { localStorage.removeItem(k); } catch (e) { /* ignore */ } }
   };
 
-  const DEFAULT_SETTINGS = { gameName: 'Wall Dash', boardSize: 9, walls2p: 10, walls3p: 7, walls4p: 5, default4pMode: 'center', turnTimer: 0, allowBots: true, onlineEnabled: true, announcement: '' };
+  const DEFAULT_SETTINGS = { gameName: 'Wall Dash', boardSize: 9, walls2p: 10, walls3p: 7, walls4p: 5, wallsMany: 4, default4pMode: 'center', turnTimer: 0, allowBots: true, onlineEnabled: true, announcement: '' };
   let SETTINGS = Object.assign({}, DEFAULT_SETTINGS, store.get('settings', {}));
   let serverReachable = false;
 
@@ -42,6 +44,7 @@
     const a = $('#announcement'); a.textContent = SETTINGS.announcement || ''; a.hidden = !SETTINGS.announcement;
     $('#btnAI').hidden = !SETTINGS.allowBots;
     $('#levelRow').hidden = !SETTINGS.allowBots;
+    syncSegs(); // the board size sets the most players
     updateOnlineUI();
   }
   function updateOnlineUI() {
@@ -67,19 +70,66 @@
   window.addEventListener('offline', updateOnlineUI);
 
   /* ---------- home setup controls ---------- */
+  // Up to one player per column. More than 4 players can only race to the top row.
+  const maxPlayers = () => Math.min(COLORS.length, SETTINGS.boardSize | 0 || 9);
+  const playMode = () => +prefs.players > 4 ? 'race' : prefs.mode;
   function syncSegs() {
-    if (!['2', '3', '4'].includes(prefs.players)) prefs.players = '2';
+    const np = Math.max(2, Math.min(maxPlayers(), parseInt(prefs.players, 10) || 2));
+    prefs.players = String(np);
+    $('#playersOut').textContent = np;
+    $('#playersDown').disabled = np <= 2; $('#playersUp').disabled = np >= maxPlayers();
     document.querySelectorAll('.seg[data-pref]').forEach(seg => {
-      const v = String(prefs[seg.dataset.pref]);
+      const v = String(seg.dataset.pref === 'mode' ? playMode() : prefs[seg.dataset.pref]);
       seg.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === v));
     });
+    document.querySelectorAll('[data-pref=mode] button').forEach(b => { b.disabled = np > 4 && b.dataset.v !== 'race'; });
+    $('#modeNote').hidden = np <= 4;
   }
   document.querySelectorAll('.seg[data-pref]').forEach(seg => {
     seg.addEventListener('click', e => {
-      const b = e.target.closest('button'); if (!b) return;
+      const b = e.target.closest('button'); if (!b || b.disabled) return;
       prefs[seg.dataset.pref] = b.dataset.v; store.set('prefs', prefs); syncSegs();
     });
   });
+  const stepPlayers = d => { prefs.players = String(+prefs.players + d); syncSegs(); store.set('prefs', prefs); };
+  $('#playersDown').addEventListener('click', () => stepPlayers(-1));
+  $('#playersUp').addEventListener('click', () => stepPlayers(1));
+
+  // A tiny 5×5 board for each mode: where pawns start and where they race to.
+  function modeIcon(mode) {
+    const at = v => 5 + v * 10;
+    const cells = [];
+    const tint = {};
+    if (mode === 'center') tint['2,2'] = ['#E7B22E', 1];
+    for (let c = 0; c < 5; c++) {
+      if (mode === 'edge') { tint['0,' + c] = [COLORS[0], 0.45]; tint['4,' + c] = [COLORS[1], 0.45]; }
+      if (mode === 'race') tint['0,' + c] = ['#E7B22E', 0.55];
+    }
+    for (let r = 0; r < 5; r++) for (let c = 0; c < 5; c++) {
+      cells.push(`<rect x="${1 + c * 10}" y="${1 + r * 10}" width="8" height="8" rx="1.6" fill="#34363A"/>`);
+      const t = tint[r + ',' + c];
+      if (t) cells.push(`<rect x="${1 + c * 10}" y="${1 + r * 10}" width="8" height="8" rx="1.6" fill="${t[0]}" opacity="${t[1]}"/>`);
+    }
+    const arrow = (r1, c1, r2, c2, color) => {
+      const x1 = at(c1), y1 = at(r1), x2 = at(c2), y2 = at(r2), len = Math.hypot(x2 - x1, y2 - y1);
+      const ux = (x2 - x1) / len, uy = (y2 - y1) / len, bx = x2 - ux * 3.2, by = y2 - uy * 3.2;
+      return `<line x1="${x1 + ux * 4}" y1="${y1 + uy * 4}" x2="${bx}" y2="${by}" stroke="${color}" stroke-width="1.6" stroke-linecap="round"/>` +
+        `<path d="M${x2} ${y2}L${bx - uy * 2.2} ${by + ux * 2.2}L${bx + uy * 2.2} ${by - ux * 2.2}Z" fill="${color}"/>`;
+    };
+    const pawn = (r, c, color) => `<circle cx="${at(c)}" cy="${at(r)}" r="3.1" fill="${color}" stroke="rgba(0,0,0,.35)" stroke-width=".6"/>`;
+    let marks = '';
+    if (mode === 'center') {
+      marks = [[4, 2], [2, 0], [0, 2], [2, 4]].map(([r, c], i) => arrow(r, c, r + Math.sign(2 - r) * 1.45, c + Math.sign(2 - c) * 1.45, COLORS[i]) + pawn(r, c, COLORS[i])).join('') +
+        '<text x="25" y="27.6" font-size="7" text-anchor="middle" fill="#6B4410">★</text>';
+    } else if (mode === 'edge') {
+      marks = arrow(4, 1, 0.3, 1, COLORS[0]) + pawn(4, 1, COLORS[0]) + arrow(0, 3, 3.7, 3, COLORS[1]) + pawn(0, 3, COLORS[1]);
+    } else {
+      for (let c = 0; c < 5; c++) marks += arrow(4, c, 1.3, c, COLORS[c]) + pawn(4, c, COLORS[c]);
+    }
+    return `<svg viewBox="-2 -2 54 54" aria-hidden="true"><rect x="-2" y="-2" width="54" height="54" rx="5" fill="#6E4127"/>` +
+      `<rect x="-0.5" y="-0.5" width="51" height="51" rx="3.5" fill="#141517"/>${cells.join('')}${marks}</svg>`;
+  }
+  document.querySelectorAll('[data-pref=mode] button').forEach(b => b.insertAdjacentHTML('afterbegin', modeIcon(b.dataset.v)));
   $('#nameInput').value = prefs.name;
   $('#nameInput').addEventListener('input', () => { prefs.name = $('#nameInput').value; store.set('prefs', prefs); });
 
@@ -95,16 +145,27 @@
   function rotWall(w, k, n) { let { r, c, o } = w; for (let i = 0; i < k; i++) { [r, c] = [n - 2 - c, r]; o = o === 'h' ? 'v' : 'h'; } return { r, c, o }; }
   function unrotWall(w, k, n) { let { r, c, o } = w; for (let i = 0; i < k; i++) { [r, c] = [c, n - 2 - r]; o = o === 'h' ? 'v' : 'h'; } return { r, c, o }; }
 
+  // Stacked layout: the board gets the height the top bar and dock leave over, and its wrapper is
+  // sized to match so the dock sits right under it. Side by side, the board fills its grid cell.
+  function boardSpace() {
+    const wrap = canvas.parentElement, scr = wrap.parentElement, cs = getComputedStyle(scr);
+    if (cs.display === 'grid') { wrap.style.height = ''; return Math.min(wrap.clientWidth, wrap.clientHeight); }
+    let h = scr.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+    for (const el of scr.children) if (el !== wrap && el.getClientRects().length) h -= el.offsetHeight + (parseFloat(cs.rowGap) || 0);
+    const size = Math.max(160, Math.floor(Math.min(wrap.clientWidth, h)));
+    wrap.style.height = size + 'px';
+    return size;
+  }
+
   function layout() {
-    const rect = canvas.parentElement.getBoundingClientRect();
-    const size = Math.floor(Math.min(rect.width, rect.height || rect.width));
+    const size = boardSpace();
     const dpr = window.devicePixelRatio || 1;
     canvas.width = size * dpr; canvas.height = size * dpr;
     canvas.style.width = size + 'px'; canvas.style.height = size + 'px';
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     const n = view.n;
     view.size = size;
-    view.pad = Math.round(size * 0.045);
+    view.pad = Math.round(size * 0.03);
     const inner = size - view.pad * 2;
     view.s = inner / (n + (n - 1) * 0.28);
     view.g = view.s * 0.28;
@@ -150,6 +211,9 @@
     ctx.restore();
   }
 
+  // Whose goal edge to mark, and in which colour. In a top-row race everyone shares one gold goal.
+  const goalOwners = st => st.mode === 'race' ? [[st.players[0], '#E7B22E', -1]] : st.players.map((p, i) => [p, COLORS[i], i]);
+
   function draw() {
     const C = controller; if (!C || !C.state) return;
     const st = C.state, n = st.n, k = view.rot, { s, g, pad, size } = view;
@@ -163,7 +227,7 @@
       const m = Math.floor(n / 2);
       ctx.fillStyle = '#E7B22E'; roundRect(cx(m) - g * 0.45, cx(m) - g * 0.45, s + g * 0.9, s + g * 0.9, s * 0.22); ctx.fill();
     } else {
-      st.players.forEach((p, i) => {
+      goalOwners(st).forEach(([p, color]) => {
         // a goal edge in logical space -> view space via the cells it covers
         const cells = [];
         for (let t = 0; t < n; t++) cells.push(p.goal === 'top' ? [0, t] : p.goal === 'bottom' ? [n - 1, t] : p.goal === 'left' ? [t, 0] : [t, n - 1]);
@@ -171,7 +235,7 @@
         const rs = v.map(a => a[0]), cs = v.map(a => a[1]);
         const r0 = Math.min(...rs), r1 = Math.max(...rs), c0 = Math.min(...cs), c1 = Math.max(...cs);
         const th = pad * 0.28;
-        ctx.fillStyle = COLORS[i];
+        ctx.fillStyle = color;
         if (r0 === r1) { const y = r0 === 0 ? pad * 0.08 : size - pad * 0.08 - th; roundRect(cx(c0), y, cx(c1) + s - cx(c0), th, th / 2); }
         else { const x = c0 === 0 ? pad * 0.08 : size - pad * 0.08 - th; roundRect(x, cx(r0), th, cx(r1) + s - cx(r0), th / 2); }
         ctx.fill();
@@ -186,13 +250,13 @@
     // destination squares: the centre square, or each player's far row tinted in their colour (strongest on their turn)
     const mid = Math.floor(n / 2), goalTint = new Map();
     if (st.mode === 'center') goalTint.set(mid + ',' + mid, [['#E7B22E', 0.85]]);
-    else st.players.forEach((p, i) => {
-      const a = st.winner === null && st.turn === i ? 0.5 : 0.2;
+    else goalOwners(st).forEach(([p, color, i]) => {
+      const a = st.mode === 'race' ? 0.35 : st.winner === null && st.turn === i ? 0.5 : 0.2;
       for (let t = 0; t < n; t++) {
         const [r, c] = p.goal === 'top' ? [0, t] : p.goal === 'bottom' ? [n - 1, t] : p.goal === 'left' ? [t, 0] : [t, n - 1];
         const vk = rotCell(r, c, k, n).join(',');
         if (!goalTint.has(vk)) goalTint.set(vk, []);
-        goalTint.get(vk).push([COLORS[i], a]);
+        goalTint.get(vk).push([color, a]);
       }
     });
     for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) {
@@ -287,13 +351,6 @@
   function updatePlace() {
     $('#wallPad').hidden = !(preview && !usingMouse && controller && controller.canAct());
   }
-  // Arrow buttons move the preview one gap in screen directions, whichever way round the board is turned.
-  function nudge(dr, dc) {
-    if (!preview) return;
-    const v = rotWall(preview, view.rot, view.n), m = view.n - 2;
-    v.r = Math.max(0, Math.min(m, v.r + dr)); v.c = Math.max(0, Math.min(m, v.c + dc));
-    preview = unrotWall(v, view.rot, view.n); draw();
-  }
 
   canvas.addEventListener('pointermove', e => {
     if (!controller || !controller.canAct()) return;
@@ -339,8 +396,6 @@
   }
   $('#btnPlace').addEventListener('click', () => { if (preview && controller && controller.canAct()) placeWall(preview); });
   $('#btnCancelWall').addEventListener('click', () => { preview = null; updatePlace(); draw(); });
-  const DIRS = { up: [-1, 0], down: [1, 0], left: [0, -1], right: [0, 1] };
-  $('#wallPad').addEventListener('click', e => { const b = e.target.closest('[data-dir]'); if (b) nudge(...DIRS[b.dataset.dir]); });
   $('#btnRotate').addEventListener('click', rotate);
   document.addEventListener('keydown', e => {
     if ($('#game').hidden || e.target.tagName === 'INPUT') return;
@@ -352,9 +407,10 @@
     $('#hint').textContent = (usingMouse
       ? 'Click a dot to move, or a gap between squares to place a wall. '
       : 'Tap a dot to move, or tap a gap between squares to choose a wall spot, then press Place wall. ')
-      + (controller && controller.state && controller.state.mode === 'center'
-        ? 'First to the gold ★ square in the middle wins.'
-        : 'First to reach a square in your coloured row wins.');
+      + ({
+        center: 'First to the gold ★ square in the middle wins.',
+        race: 'First to reach the gold top row wins.'
+      }[controller && controller.state && controller.state.mode] || 'First to reach a square in your coloured row wins.');
   }
 
   async function act(a) {
@@ -373,12 +429,44 @@
     view.rot = controller.rotation();
     lastState = null;
     preview = null; hoverCell = null; orient = 'h'; updateHint();
+    // Chat only exists in online rooms; set it before layout() so the board sizes around it.
+    $('#chatLog').hidden = $('#chatForm').hidden = !controller.chat;
+    $('#game').classList.toggle('has-chat', !!controller.chat);
+    chatShown = '';
     requestAnimationFrame(() => { layout(); render(); });
   }
+
+  let chatShown = '';
+  function renderChat() {
+    const C = controller; if (!C.chat) return;
+    const msgs = C.chat(), sig = msgs.length ? msgs[msgs.length - 1].id + ':' + msgs.length : '0';
+    if (sig === chatShown) return;
+    chatShown = sig;
+    const log = $('#chatLog'); log.innerHTML = '';
+    if (!msgs.length) {
+      const p = document.createElement('p'); p.className = 'empty'; p.textContent = 'No messages yet. Say hi!'; log.append(p);
+    }
+    for (const m of msgs) {
+      const p = document.createElement('p'), who = document.createElement('b');
+      who.style.color = COLORS[m.seat] || ''; who.textContent = m.name + (C.isMine(m.seat) ? ' (you)' : '') + ': ';
+      p.append(who, document.createTextNode(m.text));
+      log.append(p);
+    }
+    log.scrollTop = log.scrollHeight;
+  }
+  $('#chatForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const input = $('#chatInput'), text = input.value.trim();
+    if (!text || !controller || !controller.chat) return;
+    input.value = '';
+    const r = await controller.sendChat(text);
+    if (r && r.error) { toast(r.error); if (!input.value) input.value = text; }
+  });
 
   function render() {
     const C = controller; if (!C || !C.state) return;
     const st = C.state;
+    const justWon = st.winner !== null && (!lastState || lastState.winner === null); // not again on each chat line
     animateFrom(lastState, st); lastState = G.clone(st);
     // player chips
     const box = $('#players'); box.innerHTML = '';
@@ -392,6 +480,10 @@
       if (C.offline && C.offline(i)) { const o = document.createElement('span'); o.className = 'off'; o.textContent = 'offline'; el.append(o); }
       box.append(el);
     });
+    // Many players: one row that scrolls sideways, kept on whoever's turn it is.
+    box.classList.toggle('many', st.numPlayers > 4);
+    const cur = box.querySelector('.chip.turn');
+    if (st.numPlayers > 4 && cur) box.scrollLeft = cur.offsetLeft - (box.clientWidth - cur.offsetWidth) / 2;
     // status
     const canAct = C.canAct();
     if (st.winner !== null) $('#status').textContent = C.name(st.winner) + ' wins!';
@@ -404,8 +496,9 @@
     $('#btnPass').hidden = !(canAct && G.validMoves(st, st.turn).length === 0);
     if (st.winner === null) $('#overlay').hidden = true;
     updateTimer();
+    renderChat();
     draw();
-    if (st.winner !== null) setTimeout(showWin, reduceMotion ? 0 : 450);
+    if (justWon) setTimeout(showWin, reduceMotion ? 0 : 450);
   }
 
   function updateTimer() {
@@ -448,11 +541,13 @@
     fetchSettings();
   }
 
-  window.addEventListener('resize', () => { if (controller && !$('#game').hidden) { layout(); draw(); } });
+  const relayout = () => { if (controller && !$('#game').hidden) { layout(); draw(); } };
+  window.addEventListener('resize', relayout);
+  if (window.ResizeObserver) { const ro = new ResizeObserver(relayout); ro.observe($('#game')); ro.observe($('.dock')); }
 
   /* ================= Offline controller ================= */
   function LocalController(size, vsAI, level) {
-    const cfg = { numPlayers: size, mode: prefs.mode, boardSize: SETTINGS.boardSize, walls2p: SETTINGS.walls2p, walls3p: SETTINGS.walls3p, walls4p: SETTINGS.walls4p };
+    const cfg = { numPlayers: size, mode: playMode(), boardSize: SETTINGS.boardSize, walls2p: SETTINGS.walls2p, walls3p: SETTINGS.walls3p, walls4p: SETTINGS.walls4p, wallsMany: SETTINGS.wallsMany };
     let botTimer;
     const C = {
       local: true, vsAI,
@@ -477,7 +572,7 @@
         const i = C.state.turn;
         G.applyAction(C.state, i, WallAI.chooseAction(C.state, i, level));
         render(); botTurn();
-      }, 550);
+      }, size > 4 ? 300 : 550); // a full round of many computer players would drag
     }
     return C;
   }
@@ -559,11 +654,14 @@
       isMine: i => i === mySeat,
       offline: i => room.seats[i] && !room.seats[i].connected,
       canAct: () => room && room.status === 'playing' && room.state.turn === mySeat && room.state.winner === null && netOk,
-      rotation: () => room.size === 2 ? (mySeat === 1 ? 2 : 0) : Math.max(0, mySeat),
+      // Turn the board so your own goal is at the top. In a top-row race it already is, for everyone.
+      rotation: () => room.state.mode === 'race' ? 0 : room.size === 2 ? (mySeat === 1 ? 2 : 0) : Math.max(0, mySeat),
       deadline: () => room.deadline,
       canRematch: () => room.host === mySeat,
       async submit(a) { const r = await roomCall('action', { action: a }); if (r && r.ok) { preview = null; draw(); } return r; },
       rematch() { roomCall('rematch').then(r => { if (r && r.error) toast(r.error); }); },
+      chat: () => room.chat || [],
+      sendChat: text => roomCall('chat', { text }),
       leave: leaveOnline
     };
   }
@@ -607,7 +705,19 @@
     const isHost = room.host === mySeat, empty = room.seats.some(s => !s);
     $('#btnStart').hidden = !isHost; $('#waitNote').hidden = isHost;
     $('#fillRow').hidden = !isHost || !empty || !room.cfg.allowBots;
+    // Walls each: starts at the admin default; only the host can change it.
+    $('#wallsOut').textContent = room.walls;
+    $('#wallsDown').hidden = $('#wallsUp').hidden = !isHost; $('#wallsNote').hidden = isHost;
+    $('#wallsDown').disabled = room.walls <= 0; $('#wallsUp').disabled = room.walls >= 40;
   }
+  // Shown straight away; the server's reply (or the next check-in) confirms it.
+  function stepWalls(d) {
+    if (!room || room.status !== 'lobby') return;
+    room.walls = Math.max(0, Math.min(40, room.walls + d)); renderLobby();
+    roomCall('walls', { walls: room.walls }).then(r => { if (r && r.error) toast(r.error); });
+  }
+  $('#wallsDown').addEventListener('click', () => stepWalls(-1));
+  $('#wallsUp').addEventListener('click', () => stepWalls(1));
 
   async function goOnline(action, data) {
     const saved = store.get('room', null);
@@ -620,7 +730,7 @@
     applyRoom(r);
   }
 
-  $('#btnCreate').addEventListener('click', () => goOnline('create', { name: myName(), size: +prefs.players, mode: prefs.mode }));
+  $('#btnCreate').addEventListener('click', () => goOnline('create', { name: myName(), size: +prefs.players, mode: playMode() }));
   $('#btnJoin').addEventListener('click', () => {
     const code = $('#codeInput').value.trim().toUpperCase();
     if (code.length !== 5) { toast('Room codes have 5 letters or numbers.'); return; }

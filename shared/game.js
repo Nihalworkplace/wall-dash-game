@@ -6,21 +6,30 @@
   'use strict';
 
   const DIRS = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+  const MODES = ['center', 'edge', 'race'];
   const key = (r, c) => r + ',' + c;
 
-  // Seats: 2 players -> bottom, top. 3 and 4 players (clockwise) -> bottom, left, top, right.
-  // Modes: 'edge' (race to the far side) or 'center' (race to the middle square).
+  // Modes: 'edge' (race to the far side), 'center' (race to the middle square) or
+  // 'race' (everyone starts on the bottom row and races to the top row).
+  // Seats for edge and center: 2 players -> bottom, top. 3 and 4 players (clockwise) -> bottom, left, top, right.
+  // Race takes 2 players up to one per column; with more than 4 players it is the only mode.
   function createGame(opts) {
     opts = opts || {};
     let n = parseInt(opts.boardSize, 10) || 9;
     if (n % 2 === 0) n += 1;
     n = Math.max(5, Math.min(13, n));
-    const np = [2, 3, 4].includes(+opts.numPlayers) ? +opts.numPlayers : 2;
-    const mode = opts.mode === 'center' || (np > 2 && opts.mode !== 'edge') ? 'center' : 'edge';
-    const walls = np === 4 ? num(opts.walls4p, 5) : np === 3 ? num(opts.walls3p, 7) : num(opts.walls2p, 10);
+    const np = Math.max(2, Math.min(n, parseInt(opts.numPlayers, 10) || 2));
+    const mode = np > 4 ? 'race' : MODES.includes(opts.mode) ? opts.mode : np > 2 ? 'center' : 'edge';
+    const walls = np > 4 ? num(opts.wallsMany, 4) : np === 4 ? num(opts.walls4p, 5) : np === 3 ? num(opts.walls3p, 7) : num(opts.walls2p, 10);
     const mid = Math.floor(n / 2);
-    const starts = np === 2 ? [[n - 1, mid], [0, mid]] : [[n - 1, mid], [mid, 0], [0, mid], [mid, n - 1]].slice(0, np);
-    const goals = np === 2 ? ['top', 'bottom'] : ['top', 'right', 'bottom', 'left'].slice(0, np);
+    let starts, goals;
+    if (mode === 'race') {
+      starts = Array.from({ length: np }, (_, k) => [n - 1, Math.floor((2 * k + 1) * n / (2 * np))]);
+      goals = starts.map(() => 'top');
+    } else {
+      starts = np === 2 ? [[n - 1, mid], [0, mid]] : [[n - 1, mid], [mid, 0], [0, mid], [mid, n - 1]].slice(0, np);
+      goals = np === 2 ? ['top', 'bottom'] : ['top', 'right', 'bottom', 'left'].slice(0, np);
+    }
     return {
       n, numPlayers: np, mode,
       players: starts.map((s, i) => ({ r: s[0], c: s[1], walls, goal: goals[i] })),
@@ -61,6 +70,7 @@
   }
 
   // Legal pawn moves for player i, including straight jumps and side-steps.
+  // A straight jump clears a whole line of touching pawns; side-steps go around the last one.
   function validMoves(st, i, ws) {
     ws = ws || wallSet(st);
     const p = st.players[i];
@@ -69,9 +79,10 @@
     const out = new Map();
     for (const [dr, dc] of DIRS) {
       if (!canStep(st, ws, p.r, p.c, dr, dc)) continue;
-      const r1 = p.r + dr, c1 = p.c + dc;
+      let r1 = p.r + dr, c1 = p.c + dc;
       if (!occ.has(key(r1, c1))) { out.set(key(r1, c1), { r: r1, c: c1 }); continue; }
-      if (canStep(st, ws, r1, c1, dr, dc) && !occ.has(key(r1 + dr, c1 + dc))) {
+      while (canStep(st, ws, r1, c1, dr, dc) && occ.has(key(r1 + dr, c1 + dc))) { r1 += dr; c1 += dc; }
+      if (canStep(st, ws, r1, c1, dr, dc)) {
         out.set(key(r1 + dr, c1 + dc), { r: r1 + dr, c: c1 + dc, jump: true });
         continue;
       }

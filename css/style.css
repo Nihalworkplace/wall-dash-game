@@ -54,6 +54,22 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { border-color
 .seg button.on { background: var(--maple); color: #3A2414; box-shadow: inset 0 -3px 0 rgba(75, 42, 24, .35); }
 .seg.big button { padding: 12px 18px; }
 
+/* Player count */
+.stepper { display: flex; align-items: center; background: #1B2639; border-radius: 12px; padding: 4px; gap: 4px; }
+.stepper button {
+  width: 52px; height: 42px; font: inherit; font-size: 1.4rem; font-weight: 700; color: #3A2414; background: var(--maple);
+  border: 0; border-radius: 9px; cursor: pointer; box-shadow: inset 0 -3px 0 rgba(75, 42, 24, .35);
+}
+.stepper button:disabled { opacity: .35; cursor: not-allowed; }
+.lobby-walls { margin-bottom: 18px; }
+.stepper button[hidden] { display: block !important; visibility: hidden; } /* keeps the number centred for guests */
+.stepper output { flex: 1; text-align: center; font-size: 1.4rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+
+/* Mode picker: a small picture of each race */
+.seg.modes button { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px 4px 7px; font-size: .88rem; }
+.seg.modes svg { width: 100%; max-width: 76px; height: auto; display: block; }
+.seg.modes button.on { background: #2C3B57; color: var(--chalk); box-shadow: inset 0 0 0 2px var(--brass); }
+
 .btn {
   font: inherit; font-weight: 600; color: var(--chalk); background: #34476A; border: 0; cursor: pointer;
   padding: 13px 18px; border-radius: 12px; box-shadow: inset 0 -4px 0 rgba(0, 0, 0, .25);
@@ -90,30 +106,75 @@ button:focus-visible { outline: 3px solid var(--brass); outline-offset: 2px; }
 .check input { width: 20px; height: 20px; accent-color: var(--brass); }
 
 /* Game */
-.screen.game { max-width: 640px; padding-top: 12px; display: flex; flex-direction: column; min-height: 100%; }
-.players { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-bottom: 10px; }
-.chip {
-  display: flex; align-items: center; gap: 8px; padding: 6px 12px 6px 8px; border-radius: 999px;
-  background: #1B2639; border: 2px solid transparent; font-size: .9rem; transition: border-color .2s;
+/* The board takes every pixel the rest leaves over. Player names stay at the top, the chat box at the
+   bottom, and the board with its buttons sits in the middle of the space left between them. */
+.screen.game {
+  max-width: none; padding: 6px 6px 8px; display: flex; flex-direction: column; gap: 6px;
+  height: 100vh; /* older webviews drop the env() lines below */
+  height: calc(100vh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+  height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
 }
+.game-top { display: flex; align-items: center; gap: 6px; width: 100%; max-width: 760px; margin: 0 auto auto; }
+.screen.game .chat-form { margin-top: auto; }
+.screen.game:not(.has-chat) .dock { margin-bottom: auto; }
+.players { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; position: relative; }
+.players.many { flex-wrap: nowrap; justify-content: flex-start; overflow-x: auto; scrollbar-width: none; padding: 1px 0; }
+.players.many::-webkit-scrollbar { display: none; }
+.players.many .chip { flex: none; }
+.btn.leave { flex: none; padding: 6px 8px; font-size: .85rem; }
+.chip {
+  display: flex; align-items: center; gap: 5px; padding: 3px 9px 3px 5px; border-radius: 999px; min-width: 0;
+  background: #1B2639; border: 2px solid transparent; font-size: .8rem; line-height: 1.3; transition: border-color .2s;
+}
+.chip > span:nth-child(2) { max-width: 10ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chip .pawn-dot { width: 14px; height: 14px; }
 .chip.turn { border-color: var(--chalk); background: #2C3B57; }
 .chip .walls { color: var(--chalk-dim); font-variant-numeric: tabular-nums; }
-.chip .off { color: var(--danger); font-size: .75rem; }
-.board-wrap { position: relative; width: 100%; aspect-ratio: 1; max-height: 70vh; margin: 0 auto; touch-action: none; }
-.board-wrap canvas { width: 100%; height: 100%; display: block; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
-.status { text-align: center; font-weight: 600; font-size: 1.1rem; margin: 12px 0 8px; min-height: 1.5em; }
-.controls { display: flex; gap: 10px; justify-content: center; align-items: center; flex-wrap: wrap; }
-.wall-pad { display: flex; gap: 18px; justify-content: center; align-items: center; margin-top: 12px; }
-.dpad { display: grid; grid-template-columns: repeat(3, 48px); grid-template-rows: repeat(3, 48px); gap: 4px; }
-.dpad .btn { padding: 0; font-size: 1.3rem; }
-.dpad [data-dir=up] { grid-area: 1 / 2; }
-.dpad [data-dir=left] { grid-area: 2 / 1; }
-.dpad [data-dir=right] { grid-area: 2 / 3; }
-.dpad [data-dir=down] { grid-area: 3 / 2; }
-.btn.place { padding: 18px 24px; font-size: 1.15rem; }
-.wall-actions { display: flex; flex-direction: column; gap: 8px; }
-.wall-actions .inline-btns { display: flex; gap: 8px; justify-content: center; }
-.hint { text-align: center; color: var(--chalk-dim); font-size: .85rem; margin: 10px 0 0; }
+.chip .off { color: var(--danger); font-size: .7rem; }
+/* layout() sets the height to the board's own size, so the dock sits right under it. */
+.board-wrap {
+  flex: none; width: 100%; overflow: hidden; touch-action: none;
+  display: flex; align-items: center; justify-content: center;
+}
+.board-wrap canvas { display: block; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+.dock { flex: none; width: 100%; max-width: 520px; margin: 0 auto; }
+.status { text-align: center; font-weight: 600; font-size: 1rem; margin: 6px 0 4px; min-height: 1.4em; line-height: 1.4; }
+/* Fixed height, so the board doesn't jump when the wall controls appear. */
+.dock-body { min-height: 44px; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 6px; }
+#btnPass { padding: 8px 18px; }
+/* Drag on the board to move the wall; this row only turns, places or cancels it. */
+.wall-pad { display: grid; grid-template-columns: auto 1fr auto; gap: 6px; width: 100%; }
+.wall-pad:not([hidden]) ~ .hint { display: none; }
+.wall-pad .btn { padding: 0 12px; height: 42px; font-size: 1rem; border-radius: 10px; white-space: nowrap; }
+.hint { text-align: center; color: var(--chalk-dim); font-size: .78rem; line-height: 1.35; margin: 0; max-width: 46ch; }
+
+/* Online chat: history above the board, message box at the bottom. */
+.chat-log {
+  flex: none; height: 62px; overflow-y: auto; width: 100%; max-width: 760px; margin: 0 auto;
+  background: #1B2639; border-radius: 10px; padding: 5px 10px; font-size: .82rem; line-height: 1.35;
+}
+.chat-log p { margin: 0; overflow-wrap: anywhere; }
+.chat-log b { font-weight: 700; }
+.chat-log .empty { color: var(--chalk-dim); font-style: italic; }
+.chat-form { flex: none; display: flex; gap: 6px; width: 100%; max-width: 520px; margin: 0 auto; }
+.chat-form input { flex: 1; min-width: 0; padding: 8px 12px; border-radius: 10px; font-size: 16px; }
+.chat-form .btn { padding: 0 18px; border-radius: 10px; }
+
+/* Phones on their side: board on the left, everything else in a column on the right. */
+@media (orientation: landscape) and (max-height: 560px) {
+  .screen.game {
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(190px, 34%);
+    grid-template-rows: auto minmax(0, 1fr) auto auto; grid-template-areas: "board top" "board chat" "board dock" "board form"; column-gap: 10px;
+  }
+  .chat-log { grid-area: chat; height: auto; min-height: 0; }
+  .chat-form { grid-area: form; }
+  .game-top { grid-area: top; flex-direction: column; align-items: stretch; margin: 0; }
+  .players { justify-content: flex-start; }
+  .btn.leave { align-self: flex-end; order: -1; }
+  .board-wrap { grid-area: board; height: 100%; }
+  .dock { grid-area: dock; align-self: end; }
+  .wall-pad .btn { padding: 0 8px; font-size: .92rem; }
+}
 
 .overlay { position: fixed; inset: 0; background: rgba(15, 20, 32, .72); display: grid; place-items: center; padding: 20px; z-index: 20; }
 .overlay[hidden] { display: none; }

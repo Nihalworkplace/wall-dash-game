@@ -31,12 +31,13 @@ switch ($action) {
         $pid = player_id($in);
         $s = load_settings();
         if (count(room_files()) >= $s['maxRooms']) json_out(['error' => 'The server is full. Try again in a few minutes.']);
-        $size = in_array((int) ($in['size'] ?? 2), [2, 3, 4], true) ? (int) $in['size'] : 2;
+        $size = max(2, min($s['boardSize'], (int) ($in['size'] ?? 2)));
+        $mode = $size > 4 ? 'race' : (in_array($in['mode'] ?? '', ['center', 'race'], true) ? $in['mode'] : 'edge');
         $room = [
-            'code' => '', 'size' => $size, 'mode' => ($in['mode'] ?? '') === 'center' ? 'center' : 'edge',
+            'code' => '', 'size' => $size, 'mode' => $mode,
             'status' => 'lobby', 'host' => 0, 'seats' => array_fill(0, $size, null), 'state' => null,
             'createdAt' => $now, 'touched' => $now, 'rev' => 1, 'botAt' => null, 'deadline' => null,
-            'cfg' => ['boardSize' => $s['boardSize'], 'walls2p' => $s['walls2p'], 'walls3p' => $s['walls3p'], 'walls4p' => $s['walls4p'], 'turnTimer' => $s['turnTimer'], 'allowBots' => $s['allowBots']]
+            'cfg' => ['boardSize' => $s['boardSize'], 'walls2p' => $s['walls2p'], 'walls3p' => $s['walls3p'], 'walls4p' => $s['walls4p'], 'wallsMany' => $s['wallsMany'], 'turnTimer' => $s['turnTimer'], 'allowBots' => $s['allowBots']]
         ];
         $room['seats'][0] = ['id' => $pid, 'name' => clean_name($in['name'] ?? ''), 'bot' => false, 'seen' => $now];
         // Opening with 'x' fails if the file exists, so two rooms can never get the same code.
@@ -120,6 +121,41 @@ switch ($action) {
             $res = Game::applyAction($room['state'], $i, $a);
             if ($res['ok']) after_change($room, $now);
             return array_merge(room_reply($room, $pid, $now), $res);
+        });
+        json_out($reply ?: ['error' => 'gone', 'reason' => 'The room was closed.']);
+
+    case 'walls':
+        $pid = player_id($in);
+        $reply = room_op(clean_code($in['code'] ?? ''), function (&$room) use ($pid, $in, $now) {
+            $i = seat_of($room, $pid);
+            if ($room['status'] === 'closed' || $i < 0) return gone_reply($room);
+            $room['seats'][$i]['seen'] = $now;
+            if ($i !== $room['host']) return ['error' => 'Only the host can change the walls.'];
+            if ($room['status'] !== 'lobby') return ['error' => 'The game has already started.'];
+            $room['walls'] = clamp_int($in['walls'] ?? null, 0, 40, room_walls($room));
+            $room['touched'] = $now;
+            $room['rev']++;
+            return room_reply($room, $pid, $now);
+        });
+        json_out($reply ?: ['error' => 'gone', 'reason' => 'The room was closed.']);
+
+    case 'chat':
+        $pid = player_id($in);
+        $text = clean_chat($in['text'] ?? '');
+        if ($text === '') json_out(['error' => 'Type a message first.']);
+        $reply = room_op(clean_code($in['code'] ?? ''), function (&$room) use ($pid, $text, $now) {
+            $i = seat_of($room, $pid);
+            if ($room['status'] === 'closed' || $i < 0) return gone_reply($room);
+            $room['seats'][$i]['seen'] = $now;
+            if ($now - ($room['seats'][$i]['chatAt'] ?? 0) < CHAT_GAP_MS) return ['error' => 'Slow down a little.'];
+            $room['seats'][$i]['chatAt'] = $now;
+            $room['chatId'] = ($room['chatId'] ?? 0) + 1;
+            $chat = $room['chat'] ?? [];
+            $chat[] = ['id' => $room['chatId'], 'seat' => $i, 'name' => $room['seats'][$i]['name'], 'text' => $text];
+            $room['chat'] = array_slice($chat, -CHAT_KEEP);
+            $room['touched'] = $now;
+            $room['rev']++;
+            return room_reply($room, $pid, $now);
         });
         json_out($reply ?: ['error' => 'gone', 'reason' => 'The room was closed.']);
 

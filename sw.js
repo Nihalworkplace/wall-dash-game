@@ -1,5 +1,5 @@
 /* Caches the app so offline play works with no connection. Bump VERSION after changing files. */
-const VERSION = 'wall-php-v9';
+const VERSION = 'wall-php-v19';
 const ASSETS = ['./', 'index.html', 'css/style.css', 'js/app.js', 'shared/game.js', 'shared/ai.js', 'manifest.webmanifest', 'icon.svg'];
 
 self.addEventListener('install', e => {

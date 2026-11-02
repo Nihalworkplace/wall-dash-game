@@ -5,21 +5,30 @@ final class Game
 {
     const DIRS = [[-1, 0], [1, 0], [0, -1], [0, 1]];
 
-    // Seats: 2 players -> bottom, top. 3 and 4 players (clockwise) -> bottom, left, top, right.
-    // Modes: 'edge' (race to the far side) or 'center' (race to the middle square).
+    // Modes: 'edge' (race to the far side), 'center' (race to the middle square) or
+    // 'race' (everyone starts on the bottom row and races to the top row).
+    // Seats for edge and center: 2 players -> bottom, top. 3 and 4 players (clockwise) -> bottom, left, top, right.
+    // Race takes 2 players up to one per column; with more than 4 players it is the only mode.
     public static function createGame(array $opts)
     {
         $n = isset($opts['boardSize']) ? (int) $opts['boardSize'] : 0;
         if (!$n) $n = 9;
         if ($n % 2 === 0) $n += 1;
         $n = max(5, min(13, $n));
-        $np = isset($opts['numPlayers']) && in_array((int) $opts['numPlayers'], [2, 3, 4], true) ? (int) $opts['numPlayers'] : 2;
+        $np = max(2, min($n, (int) ($opts['numPlayers'] ?? 2)));
         $m = $opts['mode'] ?? '';
-        $mode = $m === 'center' || ($np > 2 && $m !== 'edge') ? 'center' : 'edge';
-        $walls = $np === 4 ? self::num($opts['walls4p'] ?? null, 5) : ($np === 3 ? self::num($opts['walls3p'] ?? null, 7) : self::num($opts['walls2p'] ?? null, 10));
+        $mode = $np > 4 ? 'race' : (in_array($m, ['center', 'edge', 'race'], true) ? $m : ($np > 2 ? 'center' : 'edge'));
+        $walls = $np > 4 ? self::num($opts['wallsMany'] ?? null, 4)
+            : ($np === 4 ? self::num($opts['walls4p'] ?? null, 5) : ($np === 3 ? self::num($opts['walls3p'] ?? null, 7) : self::num($opts['walls2p'] ?? null, 10)));
         $mid = intdiv($n, 2);
-        $starts = $np === 2 ? [[$n - 1, $mid], [0, $mid]] : array_slice([[$n - 1, $mid], [$mid, 0], [0, $mid], [$mid, $n - 1]], 0, $np);
-        $goals = $np === 2 ? ['top', 'bottom'] : array_slice(['top', 'right', 'bottom', 'left'], 0, $np);
+        if ($mode === 'race') {
+            $starts = [];
+            for ($k = 0; $k < $np; $k++) $starts[] = [$n - 1, intdiv((2 * $k + 1) * $n, 2 * $np)];
+            $goals = array_fill(0, $np, 'top');
+        } else {
+            $starts = $np === 2 ? [[$n - 1, $mid], [0, $mid]] : array_slice([[$n - 1, $mid], [$mid, 0], [0, $mid], [$mid, $n - 1]], 0, $np);
+            $goals = $np === 2 ? ['top', 'bottom'] : array_slice(['top', 'right', 'bottom', 'left'], 0, $np);
+        }
         $players = [];
         foreach ($starts as $i => $s) $players[] = ['r' => $s[0], 'c' => $s[1], 'walls' => $walls, 'goal' => $goals[$i]];
         return [
@@ -93,6 +102,7 @@ final class Game
     }
 
     // Legal pawn moves for player i, including straight jumps and side-steps.
+    // A straight jump clears a whole line of touching pawns; side-steps go around the last one.
     public static function validMoves(array $st, $i, $ws = null)
     {
         if ($ws === null) $ws = self::wallSet($st);
@@ -105,9 +115,13 @@ final class Game
             $r1 = $p['r'] + $dr;
             $c1 = $p['c'] + $dc;
             if (!isset($occ[$r1 . ',' . $c1])) { $out[$r1 . ',' . $c1] = ['r' => $r1, 'c' => $c1]; continue; }
-            $r2 = $r1 + $dr;
-            $c2 = $c1 + $dc;
-            if (self::canStep($st, $ws, $r1, $c1, $dr, $dc) && !isset($occ[$r2 . ',' . $c2])) {
+            while (self::canStep($st, $ws, $r1, $c1, $dr, $dc) && isset($occ[($r1 + $dr) . ',' . ($c1 + $dc)])) {
+                $r1 += $dr;
+                $c1 += $dc;
+            }
+            if (self::canStep($st, $ws, $r1, $c1, $dr, $dc)) {
+                $r2 = $r1 + $dr;
+                $c2 = $c1 + $dc;
                 $out[$r2 . ',' . $c2] = ['r' => $r2, 'c' => $c2, 'jump' => true];
                 continue;
             }
