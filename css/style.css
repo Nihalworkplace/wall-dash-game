@@ -131,6 +131,8 @@ button:focus-visible { outline: 3px solid var(--brass); outline-offset: 2px; }
 .chip.turn { border-color: var(--chalk); background: #2C3B57; }
 .chip .walls { color: var(--chalk-dim); font-variant-numeric: tabular-nums; }
 .chip .off { color: var(--danger); font-size: .7rem; }
+.chip .timer { color: var(--chalk); font-weight: 600; }
+.chip .timer.low { color: var(--danger); }
 /* layout() sets the height to the board's own size, so the dock sits right under it. */
 .board-wrap {
   flex: none; width: 100%; overflow: hidden; touch-action: none;

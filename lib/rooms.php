@@ -3,6 +3,7 @@
    computer turns and turn timers run whenever a player in the room checks in (about once a second). */
 
 const PRESENCE_MS = 12000; // a player who hasn't checked in for this long shows as offline
+const OFFLINE_STRIKES = 3; // turns in a row timed out while offline, then the computer takes the seat for good
 const BOT_DELAY_MS = 700;
 const BOT_DELAY_MANY_MS = 350; // big games: a full round of computer turns would drag at 700
 const BOT_NAMES = ['Bolt', 'Pebble', 'Maple', 'Juniper', 'Cedar', 'Flint', 'Hazel', 'Rowan', 'Slate', 'Willow', 'Birch', 'Clover', 'Moss'];
@@ -127,6 +128,13 @@ function start_game(array &$room, $now)
     after_change($room, $now);
 }
 
+// Seconds per turn in online games: the admin setting, or 20 for rooms made before the timer was always on.
+function turn_ms(array $room)
+{
+    $t = (int) ($room['cfg']['turnTimer'] ?? 0);
+    return ($t >= 5 ? $t : 20) * 1000;
+}
+
 function after_change(array &$room, $now)
 {
     $room['deadline'] = null;
@@ -136,10 +144,17 @@ function after_change(array &$room, $now)
     if ($room['status'] === 'playing') {
         $seat = $room['seats'][$st['turn']];
         if (!empty($seat['bot'])) $room['botAt'] = $now + ($room['size'] > 4 ? BOT_DELAY_MANY_MS : BOT_DELAY_MS);
-        elseif ($room['cfg']['turnTimer'] > 0) $room['deadline'] = $now + $room['cfg']['turnTimer'] * 1000;
+        else $room['deadline'] = $now + turn_ms($room); // every player's turn is timed
     }
     $room['touched'] = $now;
     $room['rev']++;
+}
+
+// Plays one turn for $turn with the computer player.
+function computer_turn(array &$room, $turn)
+{
+    $a = AI::chooseAction($room['state'], $turn, 'normal');
+    if (!Game::applyAction($room['state'], $turn, $a)['ok']) Game::applyAction($room['state'], $turn, Game::bestMove($room['state'], $turn));
 }
 
 // Plays any computer turn or timed-out turn that is due.
@@ -148,14 +163,28 @@ function run_due_turns(array &$room, $now)
     for ($guard = 0; $guard < 8 && $room['status'] === 'playing'; $guard++) {
         $turn = $room['state']['turn'];
         if ($room['botAt'] !== null && $now >= $room['botAt']) {
-            $a = AI::chooseAction($room['state'], $turn, 'normal');
-            if (!Game::applyAction($room['state'], $turn, $a)['ok']) Game::applyAction($room['state'], $turn, Game::bestMove($room['state'], $turn));
+            computer_turn($room, $turn);
         } elseif ($room['deadline'] !== null && $now >= $room['deadline']) {
-            Game::applyAction($room['state'], $turn, Game::bestMove($room['state'], $turn));
+            // Time's up: the computer plays this turn for them. Offline OFFLINE_STRIKES times in a row = gone.
+            $live = seat_live($room['seats'][$turn], $now);
+            computer_turn($room, $turn);
+            $missed = $live ? 0 : ($room['seats'][$turn]['missed'] ?? 0) + 1;
+            $room['seats'][$turn]['missed'] = $missed;
+            if ($missed >= OFFLINE_STRIKES) seat_to_bot($room, $turn);
         } else {
             break;
         }
         after_change($room, $now);
+    }
+}
+
+// The player is gone for good: a computer plays their seat from now on.
+function seat_to_bot(array &$room, $i)
+{
+    $room['seats'][$i] = ['bot' => true, 'name' => $room['seats'][$i]['name'] . ' (computer)'];
+    if ($room['host'] === $i) {
+        $h = first_human($room);
+        if ($h >= 0) $room['host'] = $h; // no humans left: the room expires on its own
     }
 }
 
@@ -164,7 +193,7 @@ function leave_seat(array &$room, $pid, $now)
     $i = seat_of($room, $pid);
     if ($i < 0) return;
     if ($room['status'] === 'lobby') $room['seats'][$i] = null;
-    else $room['seats'][$i] = ['bot' => true, 'name' => $room['seats'][$i]['name'] . ' (computer)']; // keep the game going
+    else seat_to_bot($room, $i); // keep the game going
     $host = first_human($room);
     if ($host < 0) { $room = null; return; }
     if ($room['host'] === $i) $room['host'] = $host;

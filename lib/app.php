@@ -118,7 +118,7 @@ const DEFAULTS = [
     'walls4p' => 5,
     'wallsMany' => 4,          // 5 or more players (top-row race only)
     'default4pMode' => 'center', // starting "Race to" choice: 'center' | 'edge' | 'race'
-    'turnTimer' => 0,          // seconds per turn in online games, 0 = off
+    'turnTimer' => 20,         // seconds per turn in online games; the computer moves when it runs out
     'allowBots' => true,       // computer players (offline and to fill online seats)
     'onlineEnabled' => true,
     'maxRooms' => 200,
@@ -141,7 +141,10 @@ function sanitize_settings(array $in, array $base)
     if (array_key_exists('walls4p', $in)) $s['walls4p'] = clamp_int($in['walls4p'], 0, 40, 5);
     if (array_key_exists('wallsMany', $in)) $s['wallsMany'] = clamp_int($in['wallsMany'], 0, 40, 4);
     if (array_key_exists('default4pMode', $in)) $s['default4pMode'] = in_array($in['default4pMode'], ['edge', 'race'], true) ? $in['default4pMode'] : 'center';
-    if (array_key_exists('turnTimer', $in)) $s['turnTimer'] = clamp_int($in['turnTimer'], 0, 600, 0);
+    if (array_key_exists('turnTimer', $in)) {
+        $t = clamp_int($in['turnTimer'], 0, 600, 20);
+        $s['turnTimer'] = $t < 5 ? 20 : $t; // always on; an old 0 ("off") becomes 20
+    }
     if (array_key_exists('allowBots', $in)) $s['allowBots'] = (bool) $in['allowBots'];
     if (array_key_exists('onlineEnabled', $in)) $s['onlineEnabled'] = (bool) $in['onlineEnabled'];
     if (array_key_exists('maxRooms', $in)) $s['maxRooms'] = clamp_int($in['maxRooms'], 1, 10000, 200);

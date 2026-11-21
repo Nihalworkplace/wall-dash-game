@@ -16,7 +16,7 @@
     del(k) { try { localStorage.removeItem(k); } catch (e) { /* ignore */ } }
   };
 
-  const DEFAULT_SETTINGS = { gameName: 'Wall Dash', boardSize: 9, walls2p: 10, walls3p: 7, walls4p: 5, wallsMany: 4, default4pMode: 'center', turnTimer: 0, allowBots: true, onlineEnabled: true, announcement: '' };
+  const DEFAULT_SETTINGS = { gameName: 'Wall Dash', boardSize: 9, walls2p: 10, walls3p: 7, walls4p: 5, wallsMany: 4, default4pMode: 'center', turnTimer: 20, allowBots: true, onlineEnabled: true, announcement: '' };
   let SETTINGS = Object.assign({}, DEFAULT_SETTINGS, store.get('settings', {}));
   let serverReachable = false;
 
@@ -475,8 +475,16 @@
       el.className = 'chip' + (st.winner === null && st.turn === i ? ' turn' : '');
       const dot = document.createElement('span'); dot.className = 'pawn-dot'; dot.style.background = COLORS[i];
       const name = document.createElement('span'); name.textContent = C.name(i) + (C.isMine(i) && !C.local ? ' (you)' : '');
-      const walls = document.createElement('span'); walls.className = 'walls'; walls.textContent = '▮ ' + p.walls; walls.title = p.walls + ' walls left';
-      el.append(dot, name, walls);
+      el.append(dot, name);
+      // Only your own wall count is shown (all of them when passing one device around).
+      if (C.isMine(i)) {
+        const walls = document.createElement('span'); walls.className = 'walls'; walls.textContent = '▮ ' + p.walls; walls.title = p.walls + ' walls left';
+        el.append(walls);
+      }
+      // Whoever's turn it is gets the countdown; updateTimer() fills it in.
+      if (st.winner === null && st.turn === i && C.deadline && C.deadline()) {
+        const t = document.createElement('span'); t.className = 'timer'; t.title = 'Time left this turn'; el.append(t);
+      }
       if (C.offline && C.offline(i)) { const o = document.createElement('span'); o.className = 'off'; o.textContent = 'offline'; el.append(o); }
       box.append(el);
     });
@@ -505,10 +513,13 @@
     clearInterval(timerTick);
     const d = controller.deadline && controller.deadline();
     if (!d || controller.state.winner !== null) return;
-    const base = $('#status').textContent;
+    const off = controller.offline && controller.offline(controller.state.turn);
+    const base = off ? controller.name(controller.state.turn) + ' is offline · computer plays in' : $('#status').textContent + ' ·';
+    const chip = $('#players .chip.turn .timer');
     const tick = () => {
       const left = Math.max(0, Math.ceil((d - Date.now()) / 1000));
-      $('#status').textContent = base + ' · ' + left + 's';
+      $('#status').textContent = base + ' ' + left + 's';
+      if (chip) { chip.textContent = '⏱ ' + left + 's'; chip.classList.toggle('low', left <= 5); }
       if (!left) clearInterval(timerTick);
     };
     tick(); timerTick = setInterval(tick, 500);

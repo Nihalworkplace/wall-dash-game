@@ -119,7 +119,7 @@ switch ($action) {
             if ($room['status'] !== 'playing') return ['error' => 'No game in progress.'];
             run_due_turns($room, $now); // a turn timer may have run out first
             $res = Game::applyAction($room['state'], $i, $a);
-            if ($res['ok']) after_change($room, $now);
+            if ($res['ok']) { $room['seats'][$i]['missed'] = 0; after_change($room, $now); } // played their own turn: not gone
             return array_merge(room_reply($room, $pid, $now), $res);
         });
         json_out($reply ?: ['error' => 'gone', 'reason' => 'The room was closed.']);

@@ -42,8 +42,8 @@
           <small>5 or more players always race from the bottom row to the top row. Up to one player per column.</small></label>
         <label><span>Default race</span>
           <select name="default4pMode"><option value="center">To the centre</option><option value="edge">To the far edge</option><option value="race">Everyone to the top row</option></select></label>
-        <label><span>Turn timer, online (seconds)</span><input name="turnTimer" type="number" min="0" max="600">
-          <small>0 turns the timer off. When time runs out, the pawn moves one step toward its goal.</small></label>
+        <label><span>Turn timer, online (seconds)</span><input name="turnTimer" type="number" min="5" max="600">
+          <small>Every turn is timed (5 seconds or more). When time runs out, the computer plays that turn. A player who times out 3 turns in a row while offline is replaced by the computer.</small></label>
         <label><span>Most rooms at once</span><input name="maxRooms" type="number" min="1" max="10000"></label>
       </div>
       <label class="check"><input type="checkbox" name="onlineEnabled"> Allow online play</label>
