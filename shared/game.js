@@ -21,6 +21,7 @@
     const np = Math.max(2, Math.min(n, parseInt(opts.numPlayers, 10) || 2));
     const mode = np > 4 ? 'race' : MODES.includes(opts.mode) ? opts.mode : np > 2 ? 'center' : 'edge';
     const walls = np > 4 ? num(opts.wallsMany, 4) : np === 4 ? num(opts.walls4p, 5) : np === 3 ? num(opts.walls3p, 7) : num(opts.walls2p, 10);
+    const breaks = num(opts.breaks, 0); // wall breaking: how many of their own walls each player may knock down
     const mid = Math.floor(n / 2);
     let starts, goals;
     if (mode === 'race') {
@@ -32,7 +33,7 @@
     }
     return {
       n, numPlayers: np, mode,
-      players: starts.map((s, i) => ({ r: s[0], c: s[1], walls, goal: goals[i] })),
+      players: starts.map((s, i) => ({ r: s[0], c: s[1], walls, breaks, goal: goals[i] })),
       walls: [], turn: 0, winner: null, moves: 0, lastAction: null
     };
   }
@@ -149,7 +150,16 @@
     return { ok: true };
   }
 
-  // Mutates st. action: {type:'move', r, c} | {type:'wall', r, c, o}
+  // Wall breaking: player i may knock down a wall they placed themselves, while they have breaks left.
+  function canBreakWall(st, i, w) {
+    if (!((st.players[i].breaks || 0) > 0)) return { ok: false, error: 'No wall breaks left.' };
+    const k = w ? st.walls.findIndex(x => x.r === +w.r && x.c === +w.c && x.o === w.o) : -1;
+    if (k < 0) return { ok: false, error: 'There’s no wall there.' };
+    if (st.walls[k].by !== i) return { ok: false, error: 'You can only break your own walls.' };
+    return { ok: true, index: k };
+  }
+
+  // Mutates st. action: {type:'move', r, c} | {type:'wall', r, c, o} | {type:'break', r, c, o} | {type:'pass'}
   function applyAction(st, i, a) {
     if (st.winner !== null) return { ok: false, error: 'The game is over.' };
     if (st.turn !== i) return { ok: false, error: 'It’s not your turn.' };
@@ -169,6 +179,12 @@
       st.walls.push({ r: w.r, c: w.c, o: w.o, by: i });
       st.players[i].walls--;
       st.lastAction = { player: i, type: 'wall', r: w.r, c: w.c, o: w.o };
+    } else if (a.type === 'break') {
+      const chk = canBreakWall(st, i, a);
+      if (!chk.ok) return chk;
+      const w = st.walls.splice(chk.index, 1)[0];
+      st.players[i].breaks--;
+      st.lastAction = { player: i, type: 'break', r: w.r, c: w.c, o: w.o };
     } else if (a.type === 'pass') {
       // Only allowed when the pawn is boxed in by other pawns and can't move.
       if (validMoves(st, i, ws).length) return { ok: false, error: 'You can still move.' };
@@ -192,5 +208,5 @@
 
   const clone = st => JSON.parse(JSON.stringify(st));
 
-  return { createGame, wallSet, validMoves, shortestPath, distance, canPlaceWall, applyAction, isGoal, bestMove, clone, isBlocked };
+  return { createGame, wallSet, validMoves, shortestPath, distance, canPlaceWall, canBreakWall, applyAction, isGoal, bestMove, clone, isBlocked };
 });

@@ -126,7 +126,7 @@ switch ($action) {
 
     case 'walls': // older pages
     case 'setup':
-        // Host changes the room in the lobby: walls each, race mode, number of players.
+        // Host changes the room in the lobby: walls each, race mode, number of players, wall breaking.
         $pid = player_id($in);
         $reply = room_op(clean_code($in['code'] ?? ''), function (&$room) use ($pid, $in, $now) {
             $i = seat_of($room, $pid);
@@ -141,6 +141,7 @@ switch ($action) {
             if (array_key_exists('mode', $in) && in_array($in['mode'], ['center', 'edge', 'race'], true)) $room['mode'] = $in['mode'];
             if ($room['size'] > 4) $room['mode'] = 'race';
             if (array_key_exists('walls', $in)) $room['walls'] = clamp_int($in['walls'], 0, 40, room_walls($room));
+            if (array_key_exists('breaks', $in)) $room['breaks'] = (bool) $in['breaks'];
             $room['touched'] = $now;
             $room['rev']++;
             return room_reply($room, $pid, $now);

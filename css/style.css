@@ -150,6 +150,8 @@ button:focus-visible { outline: 3px solid var(--brass); outline-offset: 2px; }
 /* Drag on the board to move the wall; this row only turns, places or cancels it. */
 .wall-pad { display: grid; grid-template-columns: auto 1fr auto; gap: 6px; width: 100%; }
 .wall-pad:not([hidden]) ~ .hint { display: none; }
+.wall-pad.breaking { grid-template-columns: 1fr auto; }
+#btnBreak { background: var(--danger); color: #fff; }
 .wall-pad .btn { padding: 0 12px; height: 42px; font-size: 1rem; border-radius: 10px; white-space: nowrap; }
 .hint { text-align: center; color: var(--chalk-dim); font-size: .78rem; line-height: 1.35; margin: 0; max-width: 46ch; }
 

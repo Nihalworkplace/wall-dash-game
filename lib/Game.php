@@ -20,6 +20,7 @@ final class Game
         $mode = $np > 4 ? 'race' : (in_array($m, ['center', 'edge', 'race'], true) ? $m : ($np > 2 ? 'center' : 'edge'));
         $walls = $np > 4 ? self::num($opts['wallsMany'] ?? null, 4)
             : ($np === 4 ? self::num($opts['walls4p'] ?? null, 5) : ($np === 3 ? self::num($opts['walls3p'] ?? null, 7) : self::num($opts['walls2p'] ?? null, 10)));
+        $breaks = self::num($opts['breaks'] ?? null, 0); // wall breaking: how many of their own walls each player may knock down
         $mid = intdiv($n, 2);
         if ($mode === 'race') {
             $starts = [];
@@ -30,7 +31,7 @@ final class Game
             $goals = $np === 2 ? ['top', 'bottom'] : array_slice(['top', 'right', 'bottom', 'left'], 0, $np);
         }
         $players = [];
-        foreach ($starts as $i => $s) $players[] = ['r' => $s[0], 'c' => $s[1], 'walls' => $walls, 'goal' => $goals[$i]];
+        foreach ($starts as $i => $s) $players[] = ['r' => $s[0], 'c' => $s[1], 'walls' => $walls, 'breaks' => $breaks, 'goal' => $goals[$i]];
         return [
             'n' => $n, 'numPlayers' => $np, 'mode' => $mode,
             'players' => $players,
@@ -201,6 +202,22 @@ final class Game
     }
 
     // Changes $st. action: {type:'move', r, c} | {type:'wall', r, c, o} | {type:'pass'}
+    // Wall breaking: player i may knock down a wall they placed themselves, while they have breaks left.
+    public static function canBreakWall(array $st, $i, array $w)
+    {
+        if (($st['players'][$i]['breaks'] ?? 0) <= 0) return self::no('No wall breaks left.');
+        $r = self::toInt($w['r'] ?? null);
+        $c = self::toInt($w['c'] ?? null);
+        $o = $w['o'] ?? null;
+        foreach ($st['walls'] as $k => $x) {
+            if ($x['r'] === $r && $x['c'] === $c && $x['o'] === $o) {
+                if ($x['by'] !== $i) return self::no('You can only break your own walls.');
+                return ['ok' => true, 'index' => $k];
+            }
+        }
+        return self::no('There’s no wall there.');
+    }
+
     public static function applyAction(array &$st, $i, $a)
     {
         if ($st['winner'] !== null) return self::no('The game is over.');
@@ -226,6 +243,12 @@ final class Game
             $st['walls'][] = ['r' => $w['r'], 'c' => $w['c'], 'o' => $w['o'], 'by' => $i];
             $st['players'][$i]['walls']--;
             $st['lastAction'] = ['player' => $i, 'type' => 'wall', 'r' => $w['r'], 'c' => $w['c'], 'o' => $w['o']];
+        } elseif ($type === 'break') {
+            $chk = self::canBreakWall($st, $i, $a);
+            if (!$chk['ok']) return $chk;
+            $w = array_splice($st['walls'], $chk['index'], 1)[0];
+            $st['players'][$i]['breaks']--;
+            $st['lastAction'] = ['player' => $i, 'type' => 'break', 'r' => $w['r'], 'c' => $w['c'], 'o' => $w['o']];
         } elseif ($type === 'pass') {
             // Only allowed when the pawn is boxed in by other pawns and can't move.
             if (count(self::validMoves($st, $i, $ws))) return self::no('You can still move.');

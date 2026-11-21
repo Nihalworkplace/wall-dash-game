@@ -138,6 +138,7 @@
   const ctx = canvas.getContext('2d');
   const view = { size: 0, pad: 0, s: 0, g: 0, rot: 0, n: 9 };
   let orient = 'h', preview = null, hoverCell = null;
+  let breakSel = null, hoverBreak = null; // wall breaking: one of your own walls (game space), picked / under the mouse
   let anim = null; // {from:{i:{r,c}}, t0, wallKey}
 
   function rotCell(r, c, k, n) { for (let i = 0; i < k; i++) [r, c] = [n - 1 - c, r]; return [r, c]; }
@@ -284,6 +285,9 @@
       const isNew = anim && anim.wallKey === w.o + w.r + ',' + w.c;
       drawWall(rotWall(w, k, n), shade(COLORS[w.by], 0.92), 1, isNew ? 1.25 - 0.25 * easeOut(at) : 1);
     }
+    // Wall breaking: the wall picked to break (or under the mouse) shows in red.
+    const brk = myTurn && (breakSel || hoverBreak);
+    if (brk && st.walls.some(w => sameWall(w, brk))) drawWall(rotWall(brk, k, n), '#FF7A66', breakSel ? 1 : 0.7, breakSel ? 1.12 : 1);
     if (preview && myTurn) {
       const ok = G.canPlaceWall(st, st.turn, preview).ok;
       drawWall(rotWall(preview, k, n), ok ? COLORS[st.turn] : '#FF7A66', ok ? 0.55 : 0.5, 1);
@@ -319,6 +323,21 @@
   // There is no Move / Wall switch: what the pointer is over decides. A square the pawn can step to is a move;
   // a gap between squares, or the edge of any other square, is a wall lying along that gap.
   // Returns { move: [r, c] } in view space, { wall } in game space, or null.
+  // Wall breaking: one of your own walls lying along this bit of gap (view space), if you have breaks left.
+  // A wall covers two squares' worth of gap; exact = only the wall whose middle is this corner.
+  function ownWallAt(o, line, cell, exact) {
+    const st = controller.state, me = st.turn;
+    if (!((st.players[me].breaks || 0) > 0)) return null;
+    for (const w of st.walls) {
+      if (w.by !== me) continue;
+      const v = rotWall(w, view.rot, view.n);
+      if (v.o !== o || (o === 'h' ? v.r : v.c) !== line) continue;
+      const at = o === 'h' ? v.c : v.r;
+      if (at === cell || (!exact && at === cell - 1)) return { brk: { r: w.r, c: w.c, o: w.o } };
+    }
+    return null;
+  }
+
   function targetAt(x, y) {
     const st = controller.state, { s, g, pad, n } = view, step = s + g;
     const col = Math.floor((x - pad) / step), row = Math.floor((y - pad) / step);
@@ -328,14 +347,16 @@
     if ((gapX && col === n - 1) || (gapY && row === n - 1)) return null; // the frame past the last square
     const along = v => Math.max(0, Math.min(n - 2, Math.round((v - pad - s - g / 2) / step)));
     const wall = w => st.players[st.turn].walls > 0 ? { wall: unrotWall(w, view.rot, n) } : null;
-    if (gapX && gapY) return wall({ r: row, c: col, o: orient }); // a corner: either way, R / ⟲ Turn picks
-    if (gapY) return wall({ r: row, c: along(x), o: 'h' });
-    if (gapX) return wall({ r: along(y), c: col, o: 'v' });
+    if (gapX && gapY) return ownWallAt('h', row, col, true) || ownWallAt('v', col, row, true) || wall({ r: row, c: col, o: orient }); // a corner: either way, R / ⟲ Turn picks
+    if (gapY) return ownWallAt('h', row, col) || wall({ r: row, c: along(x), o: 'h' });
+    if (gapX) return ownWallAt('v', col, row) || wall({ r: along(y), c: col, o: 'v' });
     const [r, c] = unrotCell(row, col, view.rot, n);
     if (G.validMoves(st, st.turn).some(m => m.r === r && m.c === c)) return { move: [row, col] };
     const edge = [[oy, 'h', row - 1], [s - oy, 'h', row], [ox, 'v', col - 1], [s - ox, 'v', col]]
       .filter(e => e[0] < s * 0.25 && e[2] >= 0 && e[2] <= n - 2).sort((a, b) => a[0] - b[0])[0];
     if (!edge) return null;
+    const own = edge[1] === 'h' ? ownWallAt('h', edge[2], col) : ownWallAt('v', edge[2], row);
+    if (own) return own;
     return wall(edge[1] === 'h' ? { r: edge[2], c: along(x), o: 'h' } : { r: along(y), c: edge[2], o: 'v' });
   }
 
@@ -349,23 +370,30 @@
     preview = null; updatePlace(); act({ type: 'wall', r: w.r, c: w.c, o: w.o });
   }
   function updatePlace() {
-    $('#wallPad').hidden = !(preview && !usingMouse && controller && controller.canAct());
+    const can = controller && controller.canAct();
+    if (!can) breakSel = null;
+    $('#wallPad').hidden = !(can && (breakSel || (preview && !usingMouse)));
+    // Breaking a wall: the panel asks first, mouse or touch, since it can't be undone.
+    $('#wallPad').classList.toggle('breaking', !!breakSel);
+    $('#btnRotate').hidden = $('#btnPlace').hidden = !!breakSel;
+    $('#btnBreak').hidden = !breakSel;
   }
+  function pickBreak(w) { breakSel = w; preview = null; hoverBreak = null; updatePlace(); draw(); }
 
   canvas.addEventListener('pointermove', e => {
     if (!controller || !controller.canAct()) return;
     const t = targetAt(...pointerPos(e));
     if (e.pointerType === 'mouse') {
-      const hc = t && t.move || null, w = t && t.wall || null;
+      const hc = t && t.move || null, w = t && t.wall || null, b = t && t.brk || null;
       canvas.style.cursor = t ? 'pointer' : '';
-      if (sameCell(hc, hoverCell) && (w ? sameWall(w, preview) : !preview)) return;
-      hoverCell = hc; preview = w; draw();
+      if (sameCell(hc, hoverCell) && (w ? sameWall(w, preview) : !preview) && (b ? sameWall(b, hoverBreak) : !hoverBreak)) return;
+      hoverCell = hc; preview = breakSel ? null : w; hoverBreak = b; draw();
     } else if (dragging && t && t.wall && !sameWall(t.wall, preview)) { preview = t.wall; draw(); }
   });
   // A finger lifting also fires pointerleave, so only a mouse leaving the board clears the preview.
   canvas.addEventListener('pointerleave', e => {
     if (e.pointerType !== 'mouse') return;
-    hoverCell = null; preview = null; canvas.style.cursor = ''; draw();
+    hoverCell = null; preview = null; hoverBreak = null; canvas.style.cursor = ''; draw();
   });
   canvas.addEventListener('pointerdown', e => {
     const wasMouse = usingMouse;
@@ -374,6 +402,8 @@
     if (!controller || !controller.canAct()) return;
     if (usingMouse && e.button === 2) { rotate(); return; }
     const t = targetAt(...pointerPos(e));
+    if (t && t.brk) { pickBreak(t.brk); return; }
+    breakSel = null;
     if (t && t.move) {
       const [r, c] = unrotCell(t.move[0], t.move[1], view.rot, view.n);
       preview = null; hoverCell = null; act({ type: 'move', r, c });
@@ -395,7 +425,12 @@
     preview = unrotWall(v, view.rot, view.n); draw();
   }
   $('#btnPlace').addEventListener('click', () => { if (preview && controller && controller.canAct()) placeWall(preview); });
-  $('#btnCancelWall').addEventListener('click', () => { preview = null; updatePlace(); draw(); });
+  $('#btnCancelWall').addEventListener('click', () => { preview = null; breakSel = null; updatePlace(); draw(); });
+  $('#btnBreak').addEventListener('click', () => {
+    if (!breakSel || !controller || !controller.canAct()) return;
+    const w = breakSel; breakSel = null; updatePlace();
+    act({ type: 'break', r: w.r, c: w.c, o: w.o });
+  });
   $('#btnRotate').addEventListener('click', rotate);
   document.addEventListener('keydown', e => {
     if ($('#game').hidden || e.target.tagName === 'INPUT') return;
@@ -407,6 +442,7 @@
     $('#hint').textContent = (usingMouse
       ? 'Click a dot to move, or a gap between squares to place a wall. '
       : 'Tap a dot to move, or tap a gap between squares to choose a wall spot, then press Place wall. ')
+      + (controller && controller.state && controller.state.players.some(p => p.breaks > 0) ? (usingMouse ? 'Click' : 'Tap') + ' one of your own walls to break it. ' : '')
       + ({
         center: 'First to the gold ★ square in the middle wins.',
         race: 'First to reach the gold top row wins.'
@@ -428,7 +464,7 @@
     view.n = controller.state.n;
     view.rot = controller.rotation();
     lastState = null;
-    preview = null; hoverCell = null; orient = 'h'; updateHint();
+    preview = null; hoverCell = null; breakSel = hoverBreak = null; orient = 'h'; updateHint();
     // Chat only exists in online rooms; set it before layout() so the board sizes around it.
     $('#chatLog').hidden = $('#chatForm').hidden = !controller.chat;
     $('#game').classList.toggle('has-chat', !!controller.chat);
@@ -480,6 +516,10 @@
       if (st.winner === null && (C.local && !C.vsAI ? st.turn === i : C.isMine(i))) {
         const walls = document.createElement('span'); walls.className = 'walls'; walls.textContent = '▮ ' + p.walls; walls.title = p.walls + ' walls left';
         el.append(walls);
+        if (p.breaks > 0) { // wall breaking on: breaks you have left
+          const b = document.createElement('span'); b.className = 'walls'; b.textContent = '🔨 ' + p.breaks; b.title = p.breaks + ' wall breaks left';
+          el.append(b);
+        }
       }
       // Whoever's turn it is gets the countdown, which updateTimer() fills in.
       if (st.winner === null && st.turn === i && C.deadline && C.deadline()) {
@@ -740,6 +780,7 @@
     $('#wallsDown').disabled = room.walls <= 0; $('#wallsUp').disabled = room.walls >= 40;
     for (const id of ['#sizeDown', '#sizeUp', '#wallsDown', '#wallsUp']) $(id).hidden = !isHost;
     $('#wallsNote').hidden = isHost;
+    $('#breaksBox').checked = !!room.breaks; $('#breaksBox').disabled = !isHost;
   }
   // Shown straight away; the server's reply (or the next check-in) confirms it.
   function changeRoom(change) {
@@ -752,6 +793,7 @@
   // The server adds or removes open seats; its reply redraws the seat list.
   $('#sizeDown').addEventListener('click', () => roomCall('setup', { size: room.size - 1 }).then(r => { if (r && r.error) toast(r.error); }));
   $('#sizeUp').addEventListener('click', () => roomCall('setup', { size: room.size + 1 }).then(r => { if (r && r.error) toast(r.error); }));
+  $('#breaksBox').addEventListener('change', e => changeRoom({ breaks: e.target.checked }));
   $('#roomMode').addEventListener('click', e => {
     const b = e.target.closest('button'); if (b && !b.disabled) changeRoom({ mode: b.dataset.v });
   });

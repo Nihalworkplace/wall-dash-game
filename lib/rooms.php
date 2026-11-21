@@ -3,6 +3,7 @@
    computer turns and turn timers run whenever a player in the room checks in (about once a second). */
 
 const PRESENCE_MS = 12000; // a player who hasn't checked in for this long shows as offline
+const WALL_BREAKS = 3;     // with wall breaking on, each player may knock down this many of their own walls
 const OFFLINE_STRIKES = 3; // turns in a row timed out while offline, then the computer takes the seat for good
 const BOT_DELAY_MS = 700;
 const BOT_DELAY_MANY_MS = 350; // big games: a full round of computer turns would drag at 700
@@ -94,7 +95,7 @@ function room_reply(array $room, $pid, $now)
         'room' => [
             'code' => $room['code'], 'size' => $room['size'], 'mode' => $room['mode'], 'status' => $room['status'],
             'host' => $room['host'], 'seats' => $seats, 'state' => $room['state'],
-            'deadline' => $room['deadline'] ?: null, 'cfg' => $room['cfg'], 'rev' => $room['rev'], 'chat' => $room['chat'] ?? [], 'walls' => room_walls($room)
+            'deadline' => $room['deadline'] ?: null, 'cfg' => $room['cfg'], 'rev' => $room['rev'], 'chat' => $room['chat'] ?? [], 'walls' => room_walls($room), 'breaks' => !empty($room['breaks'])
         ]
     ];
 }
@@ -121,7 +122,8 @@ function start_game(array &$room, $now)
     $w = room_walls($room);
     $room['state'] = Game::createGame([
         'numPlayers' => $room['size'], 'mode' => $room['mode'], 'boardSize' => $room['cfg']['boardSize'],
-        'walls2p' => $w, 'walls3p' => $w, 'walls4p' => $w, 'wallsMany' => $w
+        'walls2p' => $w, 'walls3p' => $w, 'walls4p' => $w, 'wallsMany' => $w,
+        'breaks' => !empty($room['breaks']) ? WALL_BREAKS : 0
     ]);
     $room['status'] = 'playing';
     bump_stat('gamesStarted');
