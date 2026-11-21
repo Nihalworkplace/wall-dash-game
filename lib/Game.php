@@ -4,6 +4,7 @@
 final class Game
 {
     const DIRS = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+    const BREAK_AFTER = 3; // wall breaking unlocks once a player has placed this many walls
 
     // Modes: 'edge' (race to the far side), 'center' (race to the middle square) or
     // 'race' (everyone starts on the bottom row and races to the top row).
@@ -31,7 +32,7 @@ final class Game
             $goals = $np === 2 ? ['top', 'bottom'] : array_slice(['top', 'right', 'bottom', 'left'], 0, $np);
         }
         $players = [];
-        foreach ($starts as $i => $s) $players[] = ['r' => $s[0], 'c' => $s[1], 'walls' => $walls, 'breaks' => $breaks, 'goal' => $goals[$i]];
+        foreach ($starts as $i => $s) $players[] = ['r' => $s[0], 'c' => $s[1], 'walls' => $walls, 'breaks' => $breaks, 'placed' => 0, 'goal' => $goals[$i]];
         return [
             'n' => $n, 'numPlayers' => $np, 'mode' => $mode,
             'players' => $players,
@@ -202,18 +203,16 @@ final class Game
     }
 
     // Changes $st. action: {type:'move', r, c} | {type:'wall', r, c, o} | {type:'pass'}
-    // Wall breaking: player i may knock down a wall they placed themselves, while they have breaks left.
+    // Wall breaking: once player i has placed BREAK_AFTER walls, they may knock down any wall, while they have breaks left.
     public static function canBreakWall(array $st, $i, array $w)
     {
         if (($st['players'][$i]['breaks'] ?? 0) <= 0) return self::no('No wall breaks left.');
+        if (($st['players'][$i]['placed'] ?? 0) < self::BREAK_AFTER) return self::no('Place ' . self::BREAK_AFTER . ' walls first, then you can break walls.');
         $r = self::toInt($w['r'] ?? null);
         $c = self::toInt($w['c'] ?? null);
         $o = $w['o'] ?? null;
         foreach ($st['walls'] as $k => $x) {
-            if ($x['r'] === $r && $x['c'] === $c && $x['o'] === $o) {
-                if ($x['by'] !== $i) return self::no('You can only break your own walls.');
-                return ['ok' => true, 'index' => $k];
-            }
+            if ($x['r'] === $r && $x['c'] === $c && $x['o'] === $o) return ['ok' => true, 'index' => $k];
         }
         return self::no('There’s no wall there.');
     }
@@ -242,6 +241,7 @@ final class Game
             if (!$chk['ok']) return $chk;
             $st['walls'][] = ['r' => $w['r'], 'c' => $w['c'], 'o' => $w['o'], 'by' => $i];
             $st['players'][$i]['walls']--;
+            $st['players'][$i]['placed'] = ($st['players'][$i]['placed'] ?? 0) + 1;
             $st['lastAction'] = ['player' => $i, 'type' => 'wall', 'r' => $w['r'], 'c' => $w['c'], 'o' => $w['o']];
         } elseif ($type === 'break') {
             $chk = self::canBreakWall($st, $i, $a);

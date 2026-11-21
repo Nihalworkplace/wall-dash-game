@@ -33,7 +33,7 @@ Then open http://localhost:8080. The admin panel is at http://localhost:8080/adm
 - **No WebSockets.** PHP hosting can't keep connections open, so while a player is in an online room the page asks `api.php` for changes about once a second (every 4 seconds when the tab is hidden). For a turn-based game you won't notice the difference.
 - **Computer turns and turn timers** run when a player in that room checks in, because there's no background process. A room with nobody watching it simply waits.
 - **A player shows as "offline"** when their page hasn't checked in for 12 seconds. Every turn in an online game is timed (20 seconds by default, set in the admin panel); the countdown shows on the chip of whoever's turn it is, and when it runs out the computer plays that turn. A player who times out 3 turns in a row while offline counts as gone, and a computer takes their seat for the rest of the game. Each player sees only their own wall count.
-- **Wall breaking** (a lobby checkbox for the host): everyone gets 3 breaks, and can knock down only walls they placed themselves. Breaking uses your turn, and the broken wall doesn’t come back to you.
+- **Wall breaking** (a lobby checkbox for the host): everyone gets 3 breaks. Once you’ve placed 3 walls yourself, you can knock down any wall on the board, anyone’s. Breaking uses your turn, and nobody gets the broken wall back.
 - **Rooms are saved as files** in `data/rooms/`, so restarting PHP doesn't end games in progress.
 - **The admin's "players in rooms"** counts players currently in a room, not people on the home screen.
 

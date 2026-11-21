@@ -8,6 +8,7 @@
   const DIRS = [[-1, 0], [1, 0], [0, -1], [0, 1]];
   const MODES = ['center', 'edge', 'race'];
   const key = (r, c) => r + ',' + c;
+  const BREAK_AFTER = 3; // wall breaking unlocks once a player has placed this many walls
 
   // Modes: 'edge' (race to the far side), 'center' (race to the middle square) or
   // 'race' (everyone starts on the bottom row and races to the top row).
@@ -33,7 +34,7 @@
     }
     return {
       n, numPlayers: np, mode,
-      players: starts.map((s, i) => ({ r: s[0], c: s[1], walls, breaks, goal: goals[i] })),
+      players: starts.map((s, i) => ({ r: s[0], c: s[1], walls, breaks, placed: 0, goal: goals[i] })),
       walls: [], turn: 0, winner: null, moves: 0, lastAction: null
     };
   }
@@ -150,12 +151,13 @@
     return { ok: true };
   }
 
-  // Wall breaking: player i may knock down a wall they placed themselves, while they have breaks left.
+  // Wall breaking: once player i has placed BREAK_AFTER walls, they may knock down any wall, while they have breaks left.
+  function breakUnlocked(st, i) { return (st.players[i].placed || 0) >= BREAK_AFTER; }
   function canBreakWall(st, i, w) {
     if (!((st.players[i].breaks || 0) > 0)) return { ok: false, error: 'No wall breaks left.' };
+    if (!breakUnlocked(st, i)) return { ok: false, error: 'Place ' + BREAK_AFTER + ' walls first, then you can break walls.' };
     const k = w ? st.walls.findIndex(x => x.r === +w.r && x.c === +w.c && x.o === w.o) : -1;
     if (k < 0) return { ok: false, error: 'There’s no wall there.' };
-    if (st.walls[k].by !== i) return { ok: false, error: 'You can only break your own walls.' };
     return { ok: true, index: k };
   }
 
@@ -178,6 +180,7 @@
       if (!chk.ok) return chk;
       st.walls.push({ r: w.r, c: w.c, o: w.o, by: i });
       st.players[i].walls--;
+      st.players[i].placed = (st.players[i].placed || 0) + 1;
       st.lastAction = { player: i, type: 'wall', r: w.r, c: w.c, o: w.o };
     } else if (a.type === 'break') {
       const chk = canBreakWall(st, i, a);
@@ -208,5 +211,5 @@
 
   const clone = st => JSON.parse(JSON.stringify(st));
 
-  return { createGame, wallSet, validMoves, shortestPath, distance, canPlaceWall, canBreakWall, applyAction, isGoal, bestMove, clone, isBlocked };
+  return { createGame, wallSet, validMoves, shortestPath, distance, canPlaceWall, canBreakWall, breakUnlocked, BREAK_AFTER, applyAction, isGoal, bestMove, clone, isBlocked };
 });

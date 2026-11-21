@@ -138,7 +138,7 @@
   const ctx = canvas.getContext('2d');
   const view = { size: 0, pad: 0, s: 0, g: 0, rot: 0, n: 9 };
   let orient = 'h', preview = null, hoverCell = null;
-  let breakSel = null, hoverBreak = null; // wall breaking: one of your own walls (game space), picked / under the mouse
+  let breakSel = null, hoverBreak = null; // wall breaking: a wall (game space), picked / under the mouse
   let anim = null; // {from:{i:{r,c}}, t0, wallKey}
 
   function rotCell(r, c, k, n) { for (let i = 0; i < k; i++) [r, c] = [n - 1 - c, r]; return [r, c]; }
@@ -323,13 +323,12 @@
   // There is no Move / Wall switch: what the pointer is over decides. A square the pawn can step to is a move;
   // a gap between squares, or the edge of any other square, is a wall lying along that gap.
   // Returns { move: [r, c] } in view space, { wall } in game space, or null.
-  // Wall breaking: one of your own walls lying along this bit of gap (view space), if you have breaks left.
+  // Wall breaking: any wall lying along this bit of gap (view space), once you may break walls.
   // A wall covers two squares' worth of gap; exact = only the wall whose middle is this corner.
   function ownWallAt(o, line, cell, exact) {
     const st = controller.state, me = st.turn;
-    if (!((st.players[me].breaks || 0) > 0)) return null;
+    if (!((st.players[me].breaks || 0) > 0) || !G.breakUnlocked(st, me)) return null;
     for (const w of st.walls) {
-      if (w.by !== me) continue;
       const v = rotWall(w, view.rot, view.n);
       if (v.o !== o || (o === 'h' ? v.r : v.c) !== line) continue;
       const at = o === 'h' ? v.c : v.r;
@@ -442,7 +441,7 @@
     $('#hint').textContent = (usingMouse
       ? 'Click a dot to move, or a gap between squares to place a wall. '
       : 'Tap a dot to move, or tap a gap between squares to choose a wall spot, then press Place wall. ')
-      + (controller && controller.state && controller.state.players.some(p => p.breaks > 0) ? (usingMouse ? 'Click' : 'Tap') + ' one of your own walls to break it. ' : '')
+      + (controller && controller.state && controller.state.players.some(p => p.breaks > 0) ? 'After placing ' + G.BREAK_AFTER + ' walls, ' + (usingMouse ? 'click' : 'tap') + ' any wall to break it. ' : '')
       + ({
         center: 'First to the gold ★ square in the middle wins.',
         race: 'First to reach the gold top row wins.'
@@ -516,8 +515,10 @@
       if (st.winner === null && (C.local && !C.vsAI ? st.turn === i : C.isMine(i))) {
         const walls = document.createElement('span'); walls.className = 'walls'; walls.textContent = '▮ ' + p.walls; walls.title = p.walls + ' walls left';
         el.append(walls);
-        if (p.breaks > 0) { // wall breaking on: breaks you have left
-          const b = document.createElement('span'); b.className = 'walls'; b.textContent = '🔨 ' + p.breaks; b.title = p.breaks + ' wall breaks left';
+        if (p.breaks > 0) { // wall breaking on: breaks you have left, faded until you've placed enough walls
+          const b = document.createElement('span'), open = G.breakUnlocked(st, i);
+          b.className = 'walls' + (open ? '' : ' locked'); b.textContent = '🔨 ' + p.breaks;
+          b.title = open ? p.breaks + ' wall breaks left' : 'Place ' + (G.BREAK_AFTER - (p.placed || 0)) + ' more walls to unlock wall breaking';
           el.append(b);
         }
       }
