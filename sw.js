@@ -1,5 +1,5 @@
 /* Caches the app so offline play works with no connection. Bump VERSION after changing files. */
-const VERSION = 'wall-php-v21';
+const VERSION = 'wall-php-v25';
 const ASSETS = ['./', 'index.html', 'css/style.css', 'js/app.js', 'shared/game.js', 'shared/ai.js', 'manifest.webmanifest', 'icon.svg'];
 
 self.addEventListener('install', e => {
@@ -14,7 +14,7 @@ self.addEventListener('fetch', e => {
   if (url.pathname.endsWith('/api.php') || /\/admin(\.html|\/)?$/.test(url.pathname) || url.pathname.endsWith('/js/admin.js')) return;
   // Network first, so updates show up right away; cache when offline.
   e.respondWith(
-    fetch(e.request).then(res => {
+    fetch(e.request, { cache: 'no-cache' }).then(res => {
       if (res.ok && (url.origin === location.origin || url.hostname.endsWith('gstatic.com') || url.hostname.endsWith('googleapis.com'))) {
         const copy = res.clone(); caches.open(VERSION).then(c => c.put(e.request, copy));
       }

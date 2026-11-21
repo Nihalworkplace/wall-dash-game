@@ -124,15 +124,46 @@ switch ($action) {
         });
         json_out($reply ?: ['error' => 'gone', 'reason' => 'The room was closed.']);
 
-    case 'walls':
+    case 'walls': // older pages
+    case 'setup':
+        // Host changes the room in the lobby: walls each, race mode, number of players.
         $pid = player_id($in);
         $reply = room_op(clean_code($in['code'] ?? ''), function (&$room) use ($pid, $in, $now) {
             $i = seat_of($room, $pid);
             if ($room['status'] === 'closed' || $i < 0) return gone_reply($room);
             $room['seats'][$i]['seen'] = $now;
-            if ($i !== $room['host']) return ['error' => 'Only the host can change the walls.'];
+            if ($i !== $room['host']) return ['error' => 'Only the host can change the game.'];
             if ($room['status'] !== 'lobby') return ['error' => 'The game has already started.'];
-            $room['walls'] = clamp_int($in['walls'] ?? null, 0, 40, room_walls($room));
+            if (array_key_exists('size', $in)) {
+                if (!resize_room($room, (int) $in['size'])) return ['error' => 'Every player in the room needs a seat.'];
+                $i = seat_of($room, $pid);
+            }
+            if (array_key_exists('mode', $in) && in_array($in['mode'], ['center', 'edge', 'race'], true)) $room['mode'] = $in['mode'];
+            if ($room['size'] > 4) $room['mode'] = 'race';
+            if (array_key_exists('walls', $in)) $room['walls'] = clamp_int($in['walls'], 0, 40, room_walls($room));
+            $room['touched'] = $now;
+            $room['rev']++;
+            return room_reply($room, $pid, $now);
+        });
+        json_out($reply ?: ['error' => 'gone', 'reason' => 'The room was closed.']);
+
+    case 'lobby':
+        // After a game: the host takes everyone back to the lobby to change the game. Computer seats open up again.
+        $pid = player_id($in);
+        $reply = room_op(clean_code($in['code'] ?? ''), function (&$room) use ($pid, $now) {
+            $i = seat_of($room, $pid);
+            if ($room['status'] === 'closed' || $i < 0) return gone_reply($room);
+            $room['seats'][$i]['seen'] = $now;
+            if ($i !== $room['host']) return ['error' => 'Only the host can change the game.'];
+            if ($room['status'] !== 'finished') return ['error' => 'Finish the game first.'];
+            foreach ($room['seats'] as $k => $st) {
+                if (!$st) continue;
+                if (!empty($st['bot'])) $room['seats'][$k] = null;
+                else unset($room['seats'][$k]['missed']);
+            }
+            $room['status'] = 'lobby';
+            $room['state'] = null;
+            $room['botAt'] = $room['deadline'] = null;
             $room['touched'] = $now;
             $room['rev']++;
             return room_reply($room, $pid, $now);

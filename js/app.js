@@ -129,7 +129,7 @@
     return `<svg viewBox="-2 -2 54 54" aria-hidden="true"><rect x="-2" y="-2" width="54" height="54" rx="5" fill="#6E4127"/>` +
       `<rect x="-0.5" y="-0.5" width="51" height="51" rx="3.5" fill="#141517"/>${cells.join('')}${marks}</svg>`;
   }
-  document.querySelectorAll('[data-pref=mode] button').forEach(b => b.insertAdjacentHTML('afterbegin', modeIcon(b.dataset.v)));
+  document.querySelectorAll('[data-pref=mode] button, #roomMode button').forEach(b => b.insertAdjacentHTML('afterbegin', modeIcon(b.dataset.v)));
   $('#nameInput').value = prefs.name;
   $('#nameInput').addEventListener('input', () => { prefs.name = $('#nameInput').value; store.set('prefs', prefs); });
 
@@ -476,12 +476,12 @@
       const dot = document.createElement('span'); dot.className = 'pawn-dot'; dot.style.background = COLORS[i];
       const name = document.createElement('span'); name.textContent = C.name(i) + (C.isMine(i) && !C.local ? ' (you)' : '');
       el.append(dot, name);
-      // Only your own wall count is shown (all of them when passing one device around).
-      if (C.isMine(i)) {
+      // Only your own wall count is shown (passing one device around: whoever's turn it is).
+      if (st.winner === null && (C.local && !C.vsAI ? st.turn === i : C.isMine(i))) {
         const walls = document.createElement('span'); walls.className = 'walls'; walls.textContent = '▮ ' + p.walls; walls.title = p.walls + ' walls left';
         el.append(walls);
       }
-      // Whoever's turn it is gets the countdown; updateTimer() fills it in.
+      // Whoever's turn it is gets the countdown, which updateTimer() fills in.
       if (st.winner === null && st.turn === i && C.deadline && C.deadline()) {
         const t = document.createElement('span'); t.className = 'timer'; t.title = 'Time left this turn'; el.append(t);
       }
@@ -513,12 +513,10 @@
     clearInterval(timerTick);
     const d = controller.deadline && controller.deadline();
     if (!d || controller.state.winner !== null) return;
-    const off = controller.offline && controller.offline(controller.state.turn);
-    const base = off ? controller.name(controller.state.turn) + ' is offline · computer plays in' : $('#status').textContent + ' ·';
+    // The countdown shows only on the turn player's chip up top.
     const chip = $('#players .chip.turn .timer');
     const tick = () => {
       const left = Math.max(0, Math.ceil((d - Date.now()) / 1000));
-      $('#status').textContent = base + ' ' + left + 's';
       if (chip) { chip.textContent = '⏱ ' + left + 's'; chip.classList.toggle('low', left <= 5); }
       if (!left) clearInterval(timerTick);
     };
@@ -533,10 +531,15 @@
     const again = $('#btnAgain');
     again.hidden = !C.canRematch();
     again.textContent = C.local ? 'Play again' : 'Rematch';
+    $('#btnSetup').hidden = C.local || !C.canRematch(); // online host: back to the lobby to change the game
     $('#overlay').hidden = false;
   }
   $('#btnAgain').addEventListener('click', () => { $('#overlay').hidden = true; controller.rematch(); });
   $('#btnHome').addEventListener('click', goHome);
+  $('#btnSetup').addEventListener('click', () => {
+    $('#overlay').hidden = true;
+    roomCall('lobby').then(r => { if (r && r.error) toast(r.error); });
+  });
   $('#btnMenu').addEventListener('click', () => {
     if (controller && controller.state && controller.state.winner === null && !confirm('Leave this game?')) return;
     goHome();
@@ -559,9 +562,11 @@
   /* ================= Offline controller ================= */
   function LocalController(size, vsAI, level) {
     const cfg = { numPlayers: size, mode: playMode(), boardSize: SETTINGS.boardSize, walls2p: SETTINGS.walls2p, walls3p: SETTINGS.walls3p, walls4p: SETTINGS.walls4p, wallsMany: SETTINGS.wallsMany };
-    let botTimer;
+    const TURN_MS = (SETTINGS.turnTimer >= 5 ? SETTINGS.turnTimer : 20) * 1000;
+    let botTimer, deadline = null;
     const C = {
       local: true, vsAI,
+      deadline: () => deadline,
       state: G.createGame(cfg),
       name: i => vsAI && i === 0 ? myName() : COLOR_NAMES[i],
       isMine: i => !vsAI || i === 0,
@@ -570,21 +575,27 @@
       canRematch: () => true,
       async submit(a) {
         const res = G.applyAction(C.state, C.state.turn, a);
-        if (res.ok) { preview = null; render(); botTurn(); }
+        if (res.ok) { preview = null; botTurn(); render(); }
         return res;
       },
-      rematch() { clearTimeout(botTimer); C.state = G.createGame(cfg); lastState = null; render(); },
-      leave() { clearTimeout(botTimer); }
+      rematch() { clearTimeout(botTimer); C.state = G.createGame(cfg); lastState = null; botTurn(); render(); },
+      leave() { clearTimeout(botTimer); deadline = null; }
     };
+    // Computer turns, and the turn timer on yours: when it runs out the computer plays that move for you.
     function botTurn() {
-      clearTimeout(botTimer);
-      if (C.state.winner !== null || C.isMine(C.state.turn)) return;
+      clearTimeout(botTimer); deadline = null;
+      if (C.state.winner !== null) return;
+      const mine = C.isMine(C.state.turn);
+      if (mine) deadline = Date.now() + TURN_MS;
       botTimer = setTimeout(() => {
         const i = C.state.turn;
-        G.applyAction(C.state, i, WallAI.chooseAction(C.state, i, level));
-        render(); botTurn();
-      }, size > 4 ? 300 : 550); // a full round of many computer players would drag
+        const a = WallAI.chooseAction(C.state, i, mine ? 'normal' : level);
+        if (!G.applyAction(C.state, i, a).ok) G.applyAction(C.state, i, G.bestMove(C.state, i));
+        if (mine) preview = null;
+        botTurn(); render();
+      }, mine ? TURN_MS : size > 4 ? 300 : 550); // a full round of many computer players would drag
     }
+    botTurn();
     return C;
   }
 
@@ -691,7 +702,7 @@
     const wasPlaying = room && room.status !== 'lobby';
     room = r;
     store.set('room', r.code);
-    if (r.status === 'lobby') { controller = null; renderLobby(); return; }
+    if (r.status === 'lobby') { controller = null; clearInterval(timerTick); renderLobby(); return; }
     if (!controller || controller.local || !wasPlaying || $('#game').hidden) { controller = OnlineController(); enterGame(); }
     else render();
   }
@@ -716,19 +727,34 @@
     const isHost = room.host === mySeat, empty = room.seats.some(s => !s);
     $('#btnStart').hidden = !isHost; $('#waitNote').hidden = isHost;
     $('#fillRow').hidden = !isHost || !empty || !room.cfg.allowBots;
-    // Walls each: starts at the admin default; only the host can change it.
+    // Players, race mode and walls each: only the host can change them.
+    const people = room.seats.filter(Boolean).length, maxSize = Math.min(COLORS.length, room.cfg.boardSize);
+    $('#sizeOut').textContent = room.size;
+    $('#sizeDown').disabled = room.size <= Math.max(2, people); $('#sizeUp').disabled = room.size >= maxSize;
+    $('#roomMode').classList.toggle('readonly', !isHost);
+    $('#roomMode').querySelectorAll('button').forEach(b => {
+      b.classList.toggle('on', b.dataset.v === room.mode);
+      b.disabled = !isHost || (room.size > 4 && b.dataset.v !== 'race');
+    });
     $('#wallsOut').textContent = room.walls;
-    $('#wallsDown').hidden = $('#wallsUp').hidden = !isHost; $('#wallsNote').hidden = isHost;
     $('#wallsDown').disabled = room.walls <= 0; $('#wallsUp').disabled = room.walls >= 40;
+    for (const id of ['#sizeDown', '#sizeUp', '#wallsDown', '#wallsUp']) $(id).hidden = !isHost;
+    $('#wallsNote').hidden = isHost;
   }
   // Shown straight away; the server's reply (or the next check-in) confirms it.
-  function stepWalls(d) {
-    if (!room || room.status !== 'lobby') return;
-    room.walls = Math.max(0, Math.min(40, room.walls + d)); renderLobby();
-    roomCall('walls', { walls: room.walls }).then(r => { if (r && r.error) toast(r.error); });
+  function changeRoom(change) {
+    if (!room || room.status !== 'lobby' || room.host !== mySeat) return;
+    Object.assign(room, change); renderLobby();
+    roomCall('setup', change).then(r => { if (r && r.error) toast(r.error); });
   }
-  $('#wallsDown').addEventListener('click', () => stepWalls(-1));
-  $('#wallsUp').addEventListener('click', () => stepWalls(1));
+  $('#wallsDown').addEventListener('click', () => changeRoom({ walls: Math.max(0, room.walls - 1) }));
+  $('#wallsUp').addEventListener('click', () => changeRoom({ walls: Math.min(40, room.walls + 1) }));
+  // The server adds or removes open seats; its reply redraws the seat list.
+  $('#sizeDown').addEventListener('click', () => roomCall('setup', { size: room.size - 1 }).then(r => { if (r && r.error) toast(r.error); }));
+  $('#sizeUp').addEventListener('click', () => roomCall('setup', { size: room.size + 1 }).then(r => { if (r && r.error) toast(r.error); }));
+  $('#roomMode').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (b && !b.disabled) changeRoom({ mode: b.dataset.v });
+  });
 
   async function goOnline(action, data) {
     const saved = store.get('room', null);

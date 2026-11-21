@@ -6,3 +6,10 @@ Options -Indexes
   RewriteEngine On
   RewriteRule ^admin/?$ admin.html [L]
 </IfModule>
+
+# Always check for a newer copy of the app's own files, so changes show up on the next load
+<IfModule mod_headers.c>
+  <FilesMatch "\.(html|js|css|webmanifest)$">
+    Header set Cache-Control "no-cache"
+  </FilesMatch>
+</IfModule>

@@ -10,7 +10,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css?v=18">
+<link rel="stylesheet" href="css/style.css?v=21">
 </head>
 <body>
 
@@ -79,14 +79,31 @@
   </div>
   <ul id="seatList" class="seats"></ul>
   <div class="row lobby-walls">
+    <span class="row-label">Players</span>
+    <div class="stepper">
+      <button type="button" id="sizeDown" aria-label="Fewer players">−</button>
+      <output id="sizeOut" aria-live="polite">2</output>
+      <button type="button" id="sizeUp" aria-label="More players">+</button>
+    </div>
+  </div>
+  <div class="row lobby-walls">
+    <span class="row-label">Race to</span>
+    <div class="seg modes" id="roomMode">
+      <button type="button" data-v="center"><span>The centre</span></button>
+      <button type="button" data-v="edge"><span>Far edge</span></button>
+      <button type="button" data-v="race"><span>Top row</span></button>
+    </div>
+  </div>
+  <div class="row lobby-walls">
     <span class="row-label">Walls each</span>
     <div class="stepper">
       <button type="button" id="wallsDown" aria-label="Fewer walls">−</button>
       <output id="wallsOut" aria-live="polite">10</output>
       <button type="button" id="wallsUp" aria-label="More walls">+</button>
     </div>
-    <p class="row-note" id="wallsNote" hidden>The host picks this.</p>
+    
   </div>
+  <p class="row-note" id="wallsNote" hidden>The host picks these.</p>
   <label id="fillRow" class="check"><input type="checkbox" id="fillBots" checked> Fill empty seats with computer players</label>
   <div class="actions">
     <button id="btnStart" class="btn primary">Start game</button>
@@ -127,6 +144,7 @@
     <h2 id="winText">Red wins</h2>
     <div class="actions">
       <button id="btnAgain" class="btn primary">Play again</button>
+      <button id="btnSetup" class="btn" hidden>Change players, mode or walls</button>
       <button id="btnHome" class="btn ghost">Back to menu</button>
     </div>
   </div>
@@ -136,6 +154,6 @@
 
 <script src="shared/game.js?v=10"></script>
 <script src="shared/ai.js?v=6"></script>
-<script src="js/app.js?v=17"></script>
+<script src="js/app.js?v=20"></script>
 </body>
 </html>

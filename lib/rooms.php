@@ -201,6 +201,25 @@ function leave_seat(array &$room, $pid, $now)
     else $room['rev']++;
 }
 
+/* Lobby only: change the number of seats. Players keep their seats (and colours) when there's room;
+   seats are added or open seats taken away at the end. False if the players wouldn't fit. */
+function resize_room(array &$room, $size)
+{
+    $size = max(2, min((int) $room['cfg']['boardSize'], 13, $size));
+    $people = count(array_filter($room['seats']));
+    if ($size < $people) return false;
+    $hostId = $room['seats'][$room['host']]['id'];
+    while (count($room['seats']) < $size) $room['seats'][] = null;
+    while (count($room['seats']) > $size) {
+        $k = count($room['seats']) - 1;
+        while ($room['seats'][$k] !== null) $k--; // the last open seat
+        array_splice($room['seats'], $k, 1);
+    }
+    $room['size'] = $size;
+    $room['host'] = seat_of($room, $hostId);
+    return true;
+}
+
 // Abandoned rooms: nobody has checked in for 10 minutes, or nothing has happened for 6 hours.
 function room_expired(array $room, $now)
 {

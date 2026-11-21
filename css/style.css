@@ -53,6 +53,9 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { border-color
 .row-note { margin: 6px 0 0; font-size: .85rem; color: var(--chalk-dim); }
 .seg button.on { background: var(--maple); color: #3A2414; box-shadow: inset 0 -3px 0 rgba(75, 42, 24, .35); }
 .seg.big button { padding: 12px 18px; }
+.seg.readonly button { cursor: default; }
+.seg.readonly button:disabled { opacity: .5; }
+.seg.readonly button.on { opacity: 1; }
 
 /* Player count */
 .stepper { display: flex; align-items: center; background: #1B2639; border-radius: 12px; padding: 4px; gap: 4px; }
@@ -131,7 +134,7 @@ button:focus-visible { outline: 3px solid var(--brass); outline-offset: 2px; }
 .chip.turn { border-color: var(--chalk); background: #2C3B57; }
 .chip .walls { color: var(--chalk-dim); font-variant-numeric: tabular-nums; }
 .chip .off { color: var(--danger); font-size: .7rem; }
-.chip .timer { color: var(--chalk); font-weight: 600; }
+.chip .timer { color: var(--chalk); font-weight: 600; font-variant-numeric: tabular-nums; }
 .chip .timer.low { color: var(--danger); }
 /* layout() sets the height to the board's own size, so the dock sits right under it. */
 .board-wrap {
