@@ -10,7 +10,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css?v=21">
+<link rel="stylesheet" href="css/style.css?v=22">
 </head>
 <body>
 
@@ -78,6 +78,13 @@
     <button id="btnShare" class="btn">Share invite link</button>
   </div>
   <ul id="seatList" class="seats"></ul>
+  <form id="renameForm" class="field rename" autocomplete="off">
+    <span>Your name</span>
+    <div class="join">
+      <input id="lobbyName" maxlength="18" autocomplete="nickname" placeholder="Player" aria-label="Your name">
+      <button id="btnRename" class="btn" type="submit">Save</button>
+    </div>
+  </form>
   <div class="row lobby-walls">
     <span class="row-label">Players</span>
     <div class="stepper">
@@ -156,6 +163,6 @@
 
 <script src="shared/game.js?v=10"></script>
 <script src="shared/ai.js?v=6"></script>
-<script src="js/app.js?v=20"></script>
+<script src="js/app.js?v=21"></script>
 </body>
 </html>

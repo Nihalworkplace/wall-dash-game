@@ -100,9 +100,18 @@ function room_reply(array $room, $pid, $now)
     ];
 }
 
-function gone_reply(array $room)
+function gone_reply(array $room, $pid = null)
 {
-    return ['error' => 'gone', 'reason' => $room['status'] === 'closed' ? $room['closedReason'] : 'You’re no longer in this room.'];
+    if ($room['status'] === 'closed') $why = $room['closedReason'];
+    elseif ($pid !== null && was_kicked($room, $pid)) $why = 'The host removed you from the room.';
+    else $why = 'You’re no longer in this room.';
+    return ['error' => 'gone', 'reason' => $why];
+}
+
+// Players the host removed (until they join again), so their next check-in can say why they're out.
+function was_kicked(array $room, $pid)
+{
+    return in_array($pid, $room['kicked'] ?? [], true);
 }
 
 // Walls each player gets: what the host picked in the lobby, else the admin default for this many players.

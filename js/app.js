@@ -706,6 +706,7 @@
   function roomClosed(reason) {
     clearTimeout(pollTimer); pollTimer = null; clearInterval(timerTick);
     store.del('room'); room = null; mySeat = -1; roomSig = '';
+    history.replaceState(null, '', location.pathname);
     toast(reason || 'The room was closed.'); controller = null; show('home');
   }
 
@@ -762,9 +763,18 @@
         const tag = document.createElement('span'); tag.className = 'tag';
         tag.textContent = i === room.host ? 'host' : !s.connected ? 'offline' : '';
         li.append(tag);
+        if (room.host === mySeat && i !== mySeat) {
+          const kick = document.createElement('button');
+          kick.type = 'button'; kick.className = 'btn danger kick'; kick.textContent = 'Remove';
+          kick.addEventListener('click', () => kickSeat(i, s.name));
+          li.append(kick);
+        }
       }
       ul.append(li);
     });
+    // Don't overwrite the name while it's being typed; a check-in redraws the lobby about once a second.
+    const nameBox = $('#lobbyName');
+    if (document.activeElement !== nameBox && room.seats[mySeat]) nameBox.value = room.seats[mySeat].name;
     const isHost = room.host === mySeat, empty = room.seats.some(s => !s);
     $('#btnStart').hidden = !isHost; $('#waitNote').hidden = isHost;
     $('#fillRow').hidden = !isHost || !empty || !room.cfg.allowBots;
@@ -795,6 +805,23 @@
   $('#sizeDown').addEventListener('click', () => roomCall('setup', { size: room.size - 1 }).then(r => { if (r && r.error) toast(r.error); }));
   $('#sizeUp').addEventListener('click', () => roomCall('setup', { size: room.size + 1 }).then(r => { if (r && r.error) toast(r.error); }));
   $('#breaksBox').addEventListener('change', e => changeRoom({ breaks: e.target.checked }));
+
+  function kickSeat(i, name) {
+    if (!confirm('Remove ' + name + ' from the room?')) return;
+    roomCall('kick', { seat: i }).then(r => { if (r && r.error) toast(r.error); else if (r && r.ok) toast(name + ' was removed'); });
+  }
+
+  // Change your name after joining. It's also remembered for next time.
+  $('#renameForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const box = $('#lobbyName'), name = (box.value.trim() || 'Player').slice(0, 18);
+    box.blur();
+    if (!room || !room.seats[mySeat]) return;
+    prefs.name = name; store.set('prefs', prefs); $('#nameInput').value = name;
+    if (room.seats[mySeat].name === name) { box.value = name; return; }
+    const r = await roomCall('rename', { name });
+    if (r && r.error) toast(r.error); else if (r && r.ok) toast('Name changed');
+  });
   $('#roomMode').addEventListener('click', e => {
     const b = e.target.closest('button'); if (b && !b.disabled) changeRoom({ mode: b.dataset.v });
   });
@@ -832,16 +859,21 @@
 
   /* ================= Start ================= */
   syncSegs(); applySettings(); show('home');
-  const qp = new URLSearchParams(location.search).get('room');
-  if (qp) $('#codeInput').value = qp.toUpperCase().slice(0, 5);
+  const qp = (new URLSearchParams(location.search).get('room') || '').trim().toUpperCase().slice(0, 5);
+  if (qp) $('#codeInput').value = qp;
   fetchSettings().then(async () => {
+    if (!serverReachable) return;
     const saved = store.get('room', null);
-    if (!saved || !serverReachable) return;
     // Put this player back in the room they were in before the page reloaded.
-    try {
-      const r = await api('poll', { code: saved, sig: '' });
-      if (r.room) applyRoom(r); else store.del('room');
-    } catch (e) { /* offline: stay on the home screen */ }
+    if (saved && (!qp || saved === qp)) {
+      try {
+        const r = await api('poll', { code: saved, sig: '' });
+        if (r.room) { applyRoom(r); return; }
+        store.del('room');
+      } catch (e) { return; /* offline: stay on the home screen */ }
+    }
+    // Opened from an invite link: join that room straight away. The name can be changed in the lobby.
+    if (/^[A-Z0-9]{5}$/.test(qp) && SETTINGS.onlineEnabled) goOnline('join', { name: myName(), code: qp });
   });
 
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
